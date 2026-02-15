@@ -17,7 +17,7 @@
                 },
                 {
                     "key": "Referrer-Policy",
-                    "value": "no-referrer-when-downgrade"
+                    "value": "strict-origin-when-cross-origin"
                 },
                 {
                     "key": "Access-Control-Allow-Credentials",

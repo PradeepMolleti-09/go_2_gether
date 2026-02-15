@@ -16,22 +16,20 @@ import { errorHandler } from "./middleware/errorHandler";
 export const createApp = () => {
   const app = express();
 
-  const allowedOrigins = [
-    env.clientOrigin,
-    "http://localhost:5173",
-    "https://go2gether-iota.vercel.app"
-  ];
-
+  // Flexible CORS - Reflects the requester's origin if it matches our pattern (Vercel or Local)
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin) || origin.endsWith(".vercel.app")) {
+        // Allow if no origin (like mobile apps/curl) or if it's our domain
+        if (!origin || origin.includes("vercel.app") || origin.includes("localhost") || origin.includes("127.0.0.1")) {
           callback(null, true);
         } else {
           callback(new Error("Not allowed by CORS"));
         }
       },
       credentials: true,
+      methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization"],
     })
   );
 
