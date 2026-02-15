@@ -41,20 +41,20 @@ router.post(
 router.get("/:tripId", authMiddleware, async (req, res, next) => {
   try {
     const { tripId } = req.params;
-    const media = await listTripMedia(tripId);
+    const media = await listTripMedia(tripId as string);
     res.json({ media });
   } catch (err) {
     next(err);
   }
 });
 
-router.delete("/:mediaId", authMiddleware, async (req, res, next) => {
+router.delete("/:mediaId", authMiddleware, async (req: AuthRequest, res, next) => {
   try {
     const { mediaId } = req.params;
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-    await deleteTripMedia(mediaId, req.user.id);
+    await deleteTripMedia(mediaId as string, req.user.id);
     res.json({ message: "Media deleted successfully" });
   } catch (err) {
     next(err);

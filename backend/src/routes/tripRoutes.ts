@@ -22,7 +22,7 @@ router.post(
       const { destination } = req.body as {
         destination?: { lat: number; lng: number; address?: string };
       };
-      const trip = await startTrip(roomId, destination);
+      const trip = await startTrip(roomId as string, destination);
       res.status(201).json({ trip });
     } catch (err) {
       next(err);
@@ -37,7 +37,7 @@ router.post(
   async (req: AuthRequest, res, next) => {
     try {
       const { roomId } = req.params;
-      const trip = await endTrip(roomId);
+      const trip = await endTrip(roomId as string);
       res.json({ trip });
     } catch (err) {
       next(err);
@@ -58,7 +58,7 @@ router.post(
           .status(400)
           .json({ message: "lat and lng are required numbers" });
       }
-      const trip = await setDestination(roomId, { lat, lng, address });
+      const trip = await setDestination(roomId as string, { lat, lng, address });
       res.json({ trip });
     } catch (err) {
       next(err);
@@ -82,7 +82,7 @@ router.post(
           .json({ message: "title, lat and lng are required" });
       }
       const checkpoint = await createCheckpoint({
-        tripId,
+        tripId: tripId as string,
         title,
         description,
         lat,
@@ -102,7 +102,7 @@ router.get(
   async (req: AuthRequest, res, next) => {
     try {
       const { tripId } = req.params;
-      const checkpoints = await getCheckpoints(tripId);
+      const checkpoints = await getCheckpoints(tripId as string);
       res.json({ checkpoints });
     } catch (err) {
       next(err);
@@ -116,7 +116,7 @@ router.delete(
   async (req: AuthRequest, res, next) => {
     try {
       const { checkpointId } = req.params;
-      await deleteCheckpoint(checkpointId);
+      await deleteCheckpoint(checkpointId as string);
       res.json({ message: "Checkpoint deleted" });
     } catch (err) {
       next(err);

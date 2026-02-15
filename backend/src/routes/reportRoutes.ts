@@ -7,7 +7,7 @@ const router = Router();
 router.get("/:tripId/pdf", authMiddleware, async (req, res, next) => {
   try {
     const { tripId } = req.params;
-    const buffer = await buildTripReportPdf(tripId);
+    const buffer = await buildTripReportPdf(tripId as string);
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",

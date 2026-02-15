@@ -17,7 +17,7 @@ router.post("/:tripId/items", authMiddleware, async (req: AuthRequest, res, next
         .json({ message: "description and numeric amount are required" });
     }
     const expense = await addExpenseItem({
-      tripId,
+      tripId: tripId as string,
       description,
       amount,
       paidByUserId: req.user.id,
@@ -32,7 +32,7 @@ router.post("/:tripId/items", authMiddleware, async (req: AuthRequest, res, next
 router.get("/:tripId", authMiddleware, async (req, res, next) => {
   try {
     const { tripId } = req.params;
-    const expense = await getExpense(tripId);
+    const expense = await getExpense(tripId as string);
     res.json({ expense });
   } catch (err) {
     next(err);

@@ -54,8 +54,8 @@ export const addExpenseItem = async (params: {
   let i = 0;
   let j = 0;
   while (i < positive.length && j < negative.length) {
-    const p = positive[i];
-    const n = negative[j];
+    const p = positive[i]!;
+    const n = negative[j]!;
     const amount = Math.min(p.amount, n.amount);
     settlements.push({ from: n.id, to: p.id, amount });
     p.amount -= amount;
