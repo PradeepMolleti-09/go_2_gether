@@ -3,6 +3,7 @@
   "compilerOptions": {
     // File Layout
     "outDir": "dist",
+    "rootDir": "src",
     // Environment Settings
     // See also https://aka.ms/tsconfig/module
     "module": "commonjs",
@@ -38,8 +39,7 @@
     "resolveJsonModule": true,
   },
   "include": [
-    "src/**/*",
-    "scripts/**/*"
+    "src/**/*"
   ],
   "exclude": [
     "node_modules"
