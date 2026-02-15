@@ -24,8 +24,9 @@ export const createApp = () => {
   );
   app.use(
     helmet({
-      crossOriginOpenerPolicy: { policy: "unsafe-none" },
+      crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
       crossOriginEmbedderPolicy: false,
+      crossOriginResourcePolicy: { policy: "cross-origin" },
     })
   );
   app.use(morgan("dev"));
