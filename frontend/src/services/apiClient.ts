@@ -1,6 +1,8 @@
-const API_BASE_URL =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ||
-  "https://go-2-gether-backend.onrender.com";
+const getApiBaseUrl = () => {
+  let url = (import.meta.env.VITE_API_BASE_URL as string | undefined) || "https://go-2-gether-backend.onrender.com";
+  return url.endsWith("/") ? url.slice(0, -1) : url;
+};
+const API_BASE_URL = getApiBaseUrl();
 
 const getToken = () => {
   try {
