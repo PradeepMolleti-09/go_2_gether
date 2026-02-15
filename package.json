@@ -1,9 +1,8 @@
 {
     "name": "go2gether-root",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "scripts": {
-        "postinstall": "cd backend && npm install",
-        "build": "cd backend && npm run build",
+        "build": "cd backend && npm install && npm run build",
         "start": "cd backend && npm start"
     }
 }
