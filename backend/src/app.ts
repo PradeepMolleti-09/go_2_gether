@@ -57,8 +57,8 @@ export const createApp = () => {
     })
   );
 
-  app.get("/health", (_req, res) => {
-    res.json({ status: "ok" });
+  app.get("/health-v2", (_req, res) => {
+    res.json({ status: "ok", version: "v2" });
   });
 
   app.get("/auth-check", (_req, res) => {
