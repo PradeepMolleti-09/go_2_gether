@@ -58,7 +58,7 @@ export const createApp = () => {
   );
 
   app.get("/health", (_req, res) => {
-    res.json({ status: "ok", version: "v3-coop-fix" });
+    res.json({ status: "ok", version: "v4-final-test" });
   });
 
   app.get("/auth-check", (_req, res) => {
