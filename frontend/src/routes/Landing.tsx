@@ -38,6 +38,8 @@ export const Landing = () => {
 
       window.google.accounts.id.initialize({
         client_id: clientId,
+        ux_mode: 'popup',
+        use_fedcm_for_prompt: true,
         callback: async (response: any) => {
           try {
             setError(null);

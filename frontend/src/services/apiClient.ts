@@ -26,22 +26,31 @@ export async function apiFetch<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers,
-  });
+  console.log(`Fetching: ${API_BASE_URL}${path}`);
+  try {
+    const res = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers,
+    });
 
-  if (!res.ok) {
-    let message = "Request failed";
-    try {
-      const data = await res.json();
-      message = data.message ?? message;
-    } catch {
-      // ignore
+    if (!res.ok) {
+      let message = "Request failed";
+      try {
+        const data = await res.json();
+        message = data.message ?? message;
+      } catch {
+        // ignore
+      }
+      throw new Error(message);
     }
-    throw new Error(message);
-  }
 
-  return res.json() as Promise<T>;
+    return res.json() as Promise<T>;
+  } catch (err: any) {
+    console.error("API Fetch Error:", err);
+    if (err.message === "Failed to fetch") {
+      throw new Error("Could not connect to the authentication server. Please check your internet or if the server is waking up.");
+    }
+    throw err;
+  }
 }
 

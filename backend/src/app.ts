@@ -16,23 +16,32 @@ import { errorHandler } from "./middleware/errorHandler";
 export const createApp = () => {
   const app = express();
 
+  const allowedOrigins = [
+    env.clientOrigin,
+    "http://localhost:5173",
+    "https://go2gether-iota.vercel.app"
+  ];
+
   app.use(
     cors({
-      origin: env.clientOrigin,
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin) || origin.endsWith(".vercel.app")) {
+          callback(null, true);
+        } else {
+          callback(new Error("Not allowed by CORS"));
+        }
+      },
       credentials: true,
     })
   );
+
   app.use(
     helmet({
-      crossOriginOpenerPolicy: false,
+      crossOriginOpenerPolicy: { policy: "unsafe-none" },
       crossOriginEmbedderPolicy: false,
+      crossOriginResourcePolicy: { policy: "cross-origin" },
     })
   );
-  app.use((req, res, next) => {
-    res.setHeader("Cross-Origin-Opener-Policy", "unsafe-none");
-    res.setHeader("Cross-Origin-Embedder-Policy", "unsafe-none");
-    next();
-  });
 
 
   app.use(morgan("dev"));
