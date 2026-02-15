@@ -20,12 +20,8 @@ export const createApp = () => {
   app.use(
     cors({
       origin: (origin, callback) => {
-        // Allow if no origin (like mobile apps/curl) or if it's our domain
-        if (!origin || origin.includes("vercel.app") || origin.includes("localhost") || origin.includes("127.0.0.1") || origin.includes("onrender.com")) {
-          callback(null, true);
-        } else {
-          callback(new Error("Not allowed by CORS"));
-        }
+        // Allow all origins for now to definitively rule out CORS issues during debugging
+        callback(null, true);
       },
       credentials: true,
       methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -37,6 +33,16 @@ export const createApp = () => {
     helmet({
       crossOriginOpenerPolicy: { policy: "unsafe-none" },
       crossOriginEmbedderPolicy: false,
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'", "https://accounts.google.com"],
+          connectSrc: ["'self'", "https://go-2-gether-backend.onrender.com", "*.onrender.com", "https://accounts.google.com"],
+          frameSrc: ["'self'", "https://accounts.google.com"],
+          imgSrc: ["'self'", "data:", "https://*.googleusercontent.com"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+        },
+      },
     })
   );
 
