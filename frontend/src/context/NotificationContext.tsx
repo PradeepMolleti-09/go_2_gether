@@ -2,7 +2,7 @@ import {
     createContext,
     useContext,
     useState,
-    ReactNode,
+    type ReactNode,
     useCallback,
 } from "react";
 import { playSound, type SoundType } from "../utils/sounds";
