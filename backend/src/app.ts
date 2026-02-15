@@ -61,6 +61,10 @@ export const createApp = () => {
     res.json({ status: "ok" });
   });
 
+  app.get("/auth-check", (_req, res) => {
+    res.json({ message: "Root auth check hit" });
+  });
+
   app.use("/auth", authRoutes);
   app.use("/rooms", roomRoutes);
   app.use("/trips", tripRoutes);
