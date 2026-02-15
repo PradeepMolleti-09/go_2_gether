@@ -24,9 +24,9 @@ export const Landing = () => {
     }
   }, [user, isLoading, navigate]);
 
-  if (isLoading) return null; // Or a subtle spinner
-
   useEffect(() => {
+    if (isLoading) return;
+
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
     if (!clientId) {
       setError("Configuration Error: Missing Google Client ID.");
@@ -77,7 +77,9 @@ export const Landing = () => {
     // though usually it's in index.html
     const timer = setTimeout(initializeGoogle, 100);
     return () => clearTimeout(timer);
-  }, [navigate, setAuth]);
+  }, [navigate, setAuth, isLoading]);
+
+  if (isLoading) return null;
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-black p-6 overflow-hidden">
