@@ -29,7 +29,7 @@ export const Home = () => {
                         className="h-10 w-10 overflow-hidden rounded-xl bg-indigo-600/10 shadow-lg shadow-indigo-600/10 cursor-pointer"
                     >
                         <img
-                            src="/(pictoicon) - Minimal map-style logo Go2Gether.png"
+                            src="/logo.png"
                             alt="Go2Gether Logo"
                             className="h-full w-full object-contain p-1.5"
                         />
@@ -239,7 +239,7 @@ export const Home = () => {
                             <a href="#hero" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                                 <div className="h-12 w-12 overflow-hidden rounded-2xl bg-indigo-600/10 p-2 border border-indigo-500/20 shadow-lg shadow-indigo-600/5">
                                     <img
-                                        src="/(pictoicon) - Minimal map-style logo Go2Gether.png"
+                                        src="/logo.png"
                                         alt="Go2Gether Logo"
                                         className="h-full w-full object-contain"
                                     />

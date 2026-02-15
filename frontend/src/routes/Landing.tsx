@@ -101,7 +101,7 @@ export const Landing = () => {
               className="mb-10 h-20 w-20 overflow-hidden rounded-3xl bg-indigo-600/10 p-3 border border-indigo-500/20 shadow-xl shadow-indigo-600/5 group cursor-pointer"
             >
               <img
-                src="/(pictoicon) - Minimal map-style logo Go2Gether.png"
+                src="/logo.png"
                 alt="Go2Gether Logo"
                 className="h-full w-full object-contain transition-transform group-hover:scale-110"
               />

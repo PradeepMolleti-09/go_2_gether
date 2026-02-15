@@ -5,6 +5,10 @@ import { User } from "../models/User";
 
 const router = Router();
 
+router.get("/", (req, res) => {
+  res.json({ message: "Auth service is running" });
+});
+
 router.post("/google", async (req, res, next) => {
   try {
     const { idToken } = req.body;
