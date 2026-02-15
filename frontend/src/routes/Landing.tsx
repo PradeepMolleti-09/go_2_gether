@@ -43,6 +43,7 @@ export const Landing = () => {
           try {
             setError(null);
             const { credential } = response;
+            console.log("Google Credential received:", credential ? "Yes" : "No");
             if (!credential) throw new Error("No credential from Google");
 
             const { user: backendUser, token } = await loginWithGoogle(credential);
@@ -76,8 +77,7 @@ export const Landing = () => {
 
     // Small delay to ensure script is loaded if added dynamically, 
     // though usually it's in index.html
-    const timer = setTimeout(initializeGoogle, 100);
-    return () => clearTimeout(timer);
+    initializeGoogle();
   }, [navigate, setAuth, isLoading]);
 
   if (isLoading) return null;

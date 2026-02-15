@@ -21,7 +21,7 @@ export const createApp = () => {
     cors({
       origin: (origin, callback) => {
         // Allow if no origin (like mobile apps/curl) or if it's our domain
-        if (!origin || origin.includes("vercel.app") || origin.includes("localhost") || origin.includes("127.0.0.1")) {
+        if (!origin || origin.includes("vercel.app") || origin.includes("localhost") || origin.includes("127.0.0.1") || origin.includes("onrender.com")) {
           callback(null, true);
         } else {
           callback(new Error("Not allowed by CORS"));
@@ -37,7 +37,6 @@ export const createApp = () => {
     helmet({
       crossOriginOpenerPolicy: { policy: "unsafe-none" },
       crossOriginEmbedderPolicy: false,
-      crossOriginResourcePolicy: { policy: "cross-origin" },
     })
   );
 
