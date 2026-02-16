@@ -303,8 +303,9 @@ export const RightChatPanel = () => {
 
         <div
           ref={scrollRef}
-          className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4 scroll-smooth custom-scrollbar"
+          className="flex-1 overflow-y-auto overflow-x-hidden p-4 flex flex-col scroll-smooth custom-scrollbar"
         >
+          <div className="flex-1" />
           {messages.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-center px-4">
               <div className="mb-2 text-2xl">💬</div>
@@ -325,7 +326,7 @@ export const RightChatPanel = () => {
               const time = new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
               return (
-                <div key={m.id} className={`flex ${isSelf ? "justify-end" : "justify-start"}`}>
+                <div key={m.id} className={`flex mb-4 ${isSelf ? "justify-end" : "justify-start"}`}>
                   <div className={`flex max-w-[85%] items-end gap-2 ${isSelf ? "flex-row-reverse" : "flex-row"}`}>
                     <div
                       className="h-7 w-7 flex-shrink-0 cursor-pointer overflow-hidden rounded-full border border-white/20"
