@@ -57,82 +57,85 @@ export const BottomStatusPanel = () => {
         showNotification("Destination cleared", "info");
     };
 
-    const elapsedMinutes = tripStats.startTime
-        ? Math.floor((Date.now() - tripStats.startTime) / 60000)
-        : 0;
+    const isTripActive = room?.activeTrip;
 
     return (
         <AnimatePresence>
-            {(destination || room?.activeTrip) && (
+            {(destination || isTripActive) && (
                 <motion.div
                     initial={{ y: 100, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     exit={{ y: 100, opacity: 0 }}
                     className="pointer-events-auto flex items-center gap-6 rounded-[32px] border border-white/10 bg-black/80 px-8 py-4 text-white shadow-2xl backdrop-blur-3xl transition-all"
                 >
-                    {/* Destination Info */}
-                    {destination && (
-                        <div className="flex border-r border-white/10 pr-6 mr-6 flex-col gap-1 min-w-[150px]">
-                            <div className="flex items-center justify-between mb-0.5">
-                                <span className="text-[10px] uppercase font-black tracking-widest text-neutral-500">Target</span>
-                                {isLeader && (
-                                    <button
-                                        onClick={handleClearDestination}
-                                        className="text-[9px] font-bold text-red-500 hover:text-red-400 transition-colors"
-                                    >
-                                        CLEAR
-                                    </button>
-                                )}
-                            </div>
-                            <div className="text-[13px] font-bold tracking-tight truncate max-w-[200px]">
-                                {destination.description}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Navigation Stats */}
-                    {destination && (
-                        <div className="flex items-center gap-10 border-r border-white/10 pr-6 mr-6">
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] uppercase font-black tracking-widest text-neutral-500">Distance</span>
-                                <div className="text-lg font-black tracking-tight">
-                                    {calculatedStats.distanceKm !== null
-                                        ? `${calculatedStats.distanceKm.toFixed(1)} km`
-                                        : "—"}
+                    {/* BEFORE TRIP STARTS: Show destination info */}
+                    {destination && !isTripActive && (
+                        <>
+                            {/* Destination Info */}
+                            <div className="flex border-r border-white/10 pr-6 mr-6 flex-col gap-1 min-w-[150px]">
+                                <div className="flex items-center justify-between mb-0.5">
+                                    <span className="text-[10px] uppercase font-black tracking-widest text-neutral-500">Target</span>
+                                    {isLeader && (
+                                        <button
+                                            onClick={handleClearDestination}
+                                            className="text-[9px] font-bold text-red-500 hover:text-red-400 transition-colors"
+                                        >
+                                            CLEAR
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="text-[13px] font-bold tracking-tight truncate max-w-[200px]">
+                                    {destination.description}
                                 </div>
                             </div>
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] uppercase font-black tracking-widest text-neutral-500">ETA</span>
-                                <div className="text-lg font-black tracking-tight text-emerald-400">
-                                    {calculatedStats.etaMinutes !== null
-                                        ? `~${Math.round(calculatedStats.etaMinutes)} min`
-                                        : "—"}
+
+                            {/* Distance & ETA */}
+                            <div className="flex items-center gap-10">
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-[10px] uppercase font-black tracking-widest text-neutral-500">Distance</span>
+                                    <div className="text-lg font-black tracking-tight">
+                                        {calculatedStats.distanceKm !== null
+                                            ? `${calculatedStats.distanceKm.toFixed(1)} km`
+                                            : "—"}
+                                    </div>
+                                </div>
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-[10px] uppercase font-black tracking-widest text-neutral-500">ETA</span>
+                                    <div className="text-lg font-black tracking-tight text-emerald-400">
+                                        {calculatedStats.etaMinutes !== null
+                                            ? `~${Math.round(calculatedStats.etaMinutes)} min`
+                                            : "—"}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        </>
                     )}
 
-                    {/* Trip Status Data */}
-                    {room?.activeTrip && (
+                    {/* AFTER TRIP STARTS: Show traveled distance, remaining distance, and ETA */}
+                    {isTripActive && (
                         <div className="flex items-center gap-10">
                             <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] uppercase font-black tracking-widest text-neutral-500">Time Total</span>
-                                <div className="text-lg font-black tracking-tight">
-                                    {elapsedMinutes}m
-                                </div>
-                            </div>
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] uppercase font-black tracking-widest text-neutral-500">Covered</span>
+                                <span className="text-[10px] uppercase font-black tracking-widest text-neutral-500">Traveled</span>
                                 <div className="text-lg font-black tracking-tight text-indigo-400">
                                     {tripStats.distanceTraveled.toFixed(2)} km
                                 </div>
                             </div>
-                            <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] uppercase font-black tracking-widest text-neutral-500">Milestones</span>
-                                <div className="text-lg font-black tracking-tight">
-                                    🚩 {tripStats.checkpointsReached}
-                                </div>
-                            </div>
+                            {destination && calculatedStats.distanceKm !== null && (
+                                <>
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-[10px] uppercase font-black tracking-widest text-neutral-500">Remaining</span>
+                                        <div className="text-lg font-black tracking-tight">
+                                            {calculatedStats.distanceKm.toFixed(1)} km
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-[10px] uppercase font-black tracking-widest text-neutral-500">ETA</span>
+                                        <div className="text-lg font-black tracking-tight text-emerald-400">
+                                            ~{Math.round(calculatedStats.etaMinutes!)} min
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </div>
                     )}
                 </motion.div>
