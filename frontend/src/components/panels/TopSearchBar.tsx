@@ -117,7 +117,7 @@ export const TopSearchBar = () => {
     <div className="pointer-events-none absolute left-0 right-0 top-4 z-20 flex justify-center px-4 md:px-6">
       {isTripActive ? (
         // Show reference to sidebar on mobile when trip is active
-        <div className="pointer-events-auto md:hidden w-full max-w-2xl pr-14">
+        <div className="pointer-events-auto md:hidden w-full max-w-2xl pr-20">
           <div className="flex items-center justify-center gap-2 rounded-full border border-indigo-500/20 bg-indigo-500/10 px-6 py-3 shadow-2xl backdrop-blur-xl">
             <span className="text-xs text-indigo-300 font-medium">
               Use the sidebar menu to manage your trip
@@ -126,7 +126,7 @@ export const TopSearchBar = () => {
           </div>
         </div>
       ) : (
-        <div className="pointer-events-auto w-full max-w-2xl pr-14 md:pr-0">
+        <div className="pointer-events-auto w-full max-w-2xl pr-20 md:pr-4">
           <form
             onSubmit={handleSubmit}
             className="flex items-center gap-3 rounded-full border border-white/10 bg-black/70 px-6 py-3 shadow-2xl backdrop-blur-xl"
