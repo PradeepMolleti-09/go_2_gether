@@ -123,7 +123,7 @@ export const SideNav = () => {
         {
             id: "checkpoints",
             label: `Checkpoints (${checkpoints?.length ?? 0})`,
-            icon: "📜",
+            icon: "🚩",
             active: isCheckpointsOpen,
             onClick: () => setIsCheckpointsOpen(!isCheckpointsOpen),
         },
