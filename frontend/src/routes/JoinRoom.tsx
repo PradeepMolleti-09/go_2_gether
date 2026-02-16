@@ -44,7 +44,7 @@ export const JoinRoom = () => {
     }, [code, user, navigate, setRoom, showNotification]);
 
     return (
-        <div className="flex h-screen items-center justify-center bg-black text-white">
+        <div className="flex h-[100dvh] w-full items-center justify-center bg-black text-white overflow-hidden">
             <div className="text-center">
                 {!error ? (
                     <>

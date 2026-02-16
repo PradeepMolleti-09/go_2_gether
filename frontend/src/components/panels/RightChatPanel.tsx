@@ -275,9 +275,9 @@ export const RightChatPanel = () => {
   }, [messages, isChatOpen, user?.id, setUnreadCount]);
 
   return (
-    <div className={`pointer-events-none absolute transition-all duration-500 ease-in-out
+    <div className={`pointer-events-none fixed md:absolute transition-all duration-500 ease-in-out
       ${isChatOpen
-        ? "inset-0 z-[100] md:z-20 md:inset-auto md:right-4 md:top-24 md:h-[70vh] md:w-80 lg:w-96 flex-col"
+        ? "inset-0 z-[100] md:z-20 md:inset-auto md:right-4 md:top-24 md:h-[70vh] md:w-80 lg:w-96 flex-col overflow-hidden"
         : "right-4 top-24 w-0 h-0 opacity-0 pointer-events-none z-20"
       }`}>
       <div
@@ -294,7 +294,7 @@ export const RightChatPanel = () => {
             )}
             <button
               onClick={() => toggleChat()}
-              className="md:hidden text-white/60 hover:text-white"
+              className="relative md:hidden text-white/60 hover:text-white"
             >
               ✕
             </button>
@@ -409,7 +409,7 @@ export const RightChatPanel = () => {
           )}
         </div>
 
-        <div className="border-t border-white/5 bg-black/30 p-3">
+        <div className="relative border-t border-white/5 bg-black/30 p-3">
           <form className="flex items-center gap-2" onSubmit={handleSubmit}>
             <button
               type="button"

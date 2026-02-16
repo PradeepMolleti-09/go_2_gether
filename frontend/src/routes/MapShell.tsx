@@ -31,7 +31,7 @@ export const MapShell = () => {
 
   if (isLoading) {
     return (
-      <div className="relative flex h-screen w-screen items-center justify-center bg-black overflow-hidden">
+      <div className="relative flex h-[100dvh] w-full items-center justify-center bg-black overflow-hidden">
         <WebGLShader />
         <div className="relative z-10 flex flex-col items-center gap-6">
           <motion.div
@@ -61,7 +61,7 @@ const MapShellInner = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-black">
+    <div className="relative h-[100dvh] w-full overflow-hidden bg-black">
       <MapContainer />
       <AlertsToast />
       <ProfileAvatar />

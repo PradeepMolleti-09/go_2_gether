@@ -83,7 +83,7 @@ export const Landing = () => {
   if (isLoading) return null;
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-black p-6 overflow-hidden">
+    <div className="relative flex h-[100dvh] w-full items-center justify-center bg-black p-6 overflow-hidden">
       <WebGLShader />
 
       <motion.div

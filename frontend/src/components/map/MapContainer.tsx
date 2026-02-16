@@ -232,7 +232,7 @@ export const MapContainer = () => {
   useEffect(() => { lastLocationRef.current = userLocation; }, [userLocation]);
 
   const onLoad = useCallback((mapInstance: google.maps.Map) => {
-    mapInstance.setOptions({ styles: mapStyles, disableDefaultUI: true, zoomControl: true });
+    mapInstance.setOptions({ styles: mapStyles, disableDefaultUI: true, zoomControl: true, gestureHandling: 'greedy' });
     setMap(mapInstance);
     if (userLocation) {
       mapInstance.panTo({ lat: userLocation.lat, lng: userLocation.lng });
