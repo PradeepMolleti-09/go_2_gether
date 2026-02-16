@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { TopSearchBar } from "../components/panels/TopSearchBar";
-import { LeftControlPanel } from "../components/panels/LeftControlPanel";
+import { BottomStatusPanel } from "../components/panels/BottomStatusPanel";
 import { RightChatPanel } from "../components/panels/RightChatPanel";
 import { SideNav } from "../components/panels/SideNav";
 import { MapContainer } from "../components/map/MapContainer";
@@ -12,11 +12,12 @@ import { CheckpointsList } from "../components/CheckpointsList";
 import { MapProvider } from "../context/MapContext";
 import { useAuth } from "../context/AuthContext";
 import { useRoom } from "../context/RoomContext";
+import { useUI } from "../context/UIContext";
 import { TripReportModal } from "../components/TripReportModal";
 import { useMapContext } from "../context/MapContext";
 
 import { WebGLShader } from "../components/ui/web-gl-shader";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { RoomManager } from "../components/panels/RoomManager";
 
 export const MapShell = () => {
@@ -55,7 +56,8 @@ export const MapShell = () => {
 };
 
 const MapShellInner = () => {
-  const { tripStats, setTripStats, destination } = useMapContext();
+  const { tripStats, setTripStats } = useMapContext();
+  const { isCheckpointsOpen } = useUI();
   const { room } = useRoom();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -76,20 +78,22 @@ const MapShellInner = () => {
         </div>
       )}
 
-      <div className="pointer-events-none absolute bottom-4 left-0 right-0 z-20 px-4 md:px-12 flex flex-row items-end justify-end md:justify-between gap-2 md:gap-8 overflow-hidden">
-
-        {/* Trip Info Wrapper - Push to right on mobile with ml-14 to clear sidebar */}
-        {destination && (
-          <div className="pointer-events-auto flex-1 md:flex-none max-w-[155px] md:w-60 lg:w-72 min-h-[110px] ml-14 md:ml-16">
-            <LeftControlPanel />
-          </div>
-        )}
-
-        {/* Checkpoints List Wrapper */}
-        <div className={`pointer-events-auto flex-1 md:flex-none max-w-[155px] md:w-60 lg:w-72 min-h-[110px] ${!destination ? 'ml-14 md:ml-16' : ''}`}>
-          <CheckpointsList />
-        </div>
+      <div className="pointer-events-none absolute bottom-4 left-0 right-0 z-20 px-8 flex justify-center">
+        <BottomStatusPanel />
       </div>
+
+      <AnimatePresence>
+        {isCheckpointsOpen && (
+          <motion.div
+            initial={{ opacity: 0, x: -100 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -100 }}
+            className="absolute left-20 top-1/2 z-40 h-[300px] w-64 -translate-y-1/2"
+          >
+            <CheckpointsList />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <CheckpointModal />
       <TripReportModal

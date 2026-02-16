@@ -265,12 +265,25 @@ export const RightChatPanel = () => {
     }
   }, [isChatOpen, setUnreadCount]);
 
+  const lastProcessedMessageId = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!isChatOpen && messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
+    if (messages.length === 0) return;
+    const lastMessage = messages[messages.length - 1];
+
+    // If chat is open, mark all as seen
+    if (isChatOpen) {
+      lastProcessedMessageId.current = lastMessage.id;
+      setUnreadCount(0);
+      return;
+    }
+
+    // If chat is closed and we have a new message from someone else
+    if (!isChatOpen && lastMessage.id !== lastProcessedMessageId.current) {
       if (lastMessage.userId !== user?.id) {
         setUnreadCount((prev: number) => prev + 1);
       }
+      lastProcessedMessageId.current = lastMessage.id;
     }
   }, [messages, isChatOpen, user?.id, setUnreadCount]);
 

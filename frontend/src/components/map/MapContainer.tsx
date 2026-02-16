@@ -189,8 +189,11 @@ const haversineKm = (a: { lat: number; lng: number }, b: { lat: number; lng: num
   return R * c;
 };
 
+import { useUI } from "../../context/UIContext";
+
 export const MapContainer = () => {
   const [map, setMap] = useState<google.maps.Map | null>(null);
+  const { theme } = useUI();
   const { socket } = useSocket();
   const { room, addMember, clearRoom } = useRoom();
   const { user } = useAuth();
@@ -207,7 +210,6 @@ export const MapContainer = () => {
 
   const [positions, setPositions] = useState<Record<string, any>>({});
   const [loadedAvatarIcons, setLoadedAvatarIcons] = useState<Map<string, google.maps.Icon | google.maps.Symbol>>(new Map());
-  const [elapsedMinutes, setElapsedMinutes] = useState(0);
   const lastLocationRef = useRef<{ lat: number; lng: number } | null>(null);
 
   const { isLoaded } = useJsApiLoader({
@@ -215,6 +217,34 @@ export const MapContainer = () => {
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string,
     libraries: ["places"],
   });
+
+  useEffect(() => {
+    if (map) {
+      map.setOptions({
+        styles: theme === "dark" ? mapStyles : [],
+        disableDefaultUI: true,
+        zoomControl: false,
+        gestureHandling: 'greedy',
+        clickableIcons: false
+      });
+    }
+  }, [map, theme]);
+
+  const onLoad = useCallback((mapInstance: google.maps.Map) => {
+    mapInstance.setOptions({
+      styles: theme === "dark" ? mapStyles : [],
+      disableDefaultUI: true,
+      zoomControl: false,
+      gestureHandling: 'greedy'
+    });
+    setMap(mapInstance);
+    if (userLocation) {
+      mapInstance.panTo({ lat: userLocation.lat, lng: userLocation.lng });
+      mapInstance.setZoom(14);
+    }
+  }, [userLocation, theme]);
+
+  const onUnmount = useCallback(() => { setMap(null); }, []);
 
   useEffect(() => {
     const simplified = Object.entries(positions).reduce((acc, [id, pos]: [string, any]) => {
@@ -231,30 +261,9 @@ export const MapContainer = () => {
     }
   }, [map, focusLocation]);
 
-  useEffect(() => {
-    if (!tripStats.startTime || tripStats.endTime) {
-      setElapsedMinutes(0);
-      return;
-    }
-    const interval = setInterval(() => {
-      setElapsedMinutes(Math.floor((Date.now() - tripStats.startTime!) / 60000));
-    }, 10000); // Check every 10s
-    setElapsedMinutes(Math.floor((Date.now() - tripStats.startTime!) / 60000));
-    return () => clearInterval(interval);
-  }, [tripStats.startTime, tripStats.endTime]);
+
 
   useEffect(() => { lastLocationRef.current = userLocation; }, [userLocation]);
-
-  const onLoad = useCallback((mapInstance: google.maps.Map) => {
-    mapInstance.setOptions({ styles: mapStyles, disableDefaultUI: true, zoomControl: false, gestureHandling: 'greedy' });
-    setMap(mapInstance);
-    if (userLocation) {
-      mapInstance.panTo({ lat: userLocation.lat, lng: userLocation.lng });
-      mapInstance.setZoom(14);
-    }
-  }, [userLocation]);
-
-  const onUnmount = useCallback(() => { setMap(null); }, []);
 
   useEffect(() => {
     if (!navigator.geolocation) return;
@@ -270,10 +279,10 @@ export const MapContainer = () => {
   }, [map, setUserLocation]);
 
   useEffect(() => {
-    if (!map || !destination) return;
+    if (!map || !destination || room?.activeTrip) return; // Hide auto-pan if trip started or search used
     map.panTo({ lat: destination.lat, lng: destination.lng });
     map.setZoom(14);
-  }, [map, destination]);
+  }, [map, destination, room?.activeTrip]);
 
   useEffect(() => {
     let active = true;
@@ -329,9 +338,10 @@ export const MapContainer = () => {
         const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         socket.emit("location:update", { roomId: room._id, lat: coords.lat, lng: coords.lng });
         setPositions(prev => ({ ...prev, [user?.id ?? "self"]: { ...coords, lastUpdated: Date.now(), isSelf: true } }));
-        if (lastLocationRef.current) {
+        if (lastLocationRef.current && tripStats.startTime && !tripStats.endTime) {
           const dist = haversineKm(lastLocationRef.current, coords);
-          if (dist > 0.001) setTripStats((prev: any) => ({ ...prev, distanceTraveled: prev.distanceTraveled + dist }));
+          // Only count if movement is more than 5 meters to filter GPS noise
+          if (dist > 0.005) setTripStats((prev: any) => ({ ...prev, distanceTraveled: prev.distanceTraveled + dist }));
         }
         checkpoints.forEach(cp => {
           if (haversineKm(coords, cp.location) < 0.03 && socket && room?._id) { // 30 meters
@@ -476,47 +486,7 @@ export const MapContainer = () => {
 
   return (
     <div className="absolute inset-0">
-      {room?.activeTrip && (
-        <div className="absolute top-[80px] md:top-24 left-4 z-10 w-[calc(100%-2rem)] md:w-auto bg-black/80 p-4 rounded-2xl text-white backdrop-blur-xl border border-white/10 shadow-2xl transition-all animate-in fade-in slide-in-from-left-4">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            <div className="text-xs font-black uppercase tracking-[0.2em] text-white/50">Voyage Protocol</div>
-          </div>
 
-          <div className="grid grid-cols-2 md:flex md:flex-col gap-4">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">Elapsed Time</p>
-              <p className="text-lg font-black tracking-tight">{elapsedMinutes < 1 ? '< 1m' : `${elapsedMinutes}m`}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">Distance Covered</p>
-              <p className="text-lg font-black tracking-tight">{tripStats.distanceTraveled.toFixed(2)} <span className="text-[10px] text-neutral-500">KM</span></p>
-            </div>
-
-            {(tripStats as any).totalDistance ? (
-              <>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">Remaining</p>
-                  <p className="text-lg font-black tracking-tight text-indigo-400">
-                    {Math.max(0, (tripStats as any).totalDistance - tripStats.distanceTraveled).toFixed(2)} <span className="text-[10px] opacity-50">KM</span>
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">ETA</p>
-                  <p className="text-lg font-black tracking-tight text-emerald-400">
-                    {Math.max(1, Math.ceil(((tripStats as any).totalDistance - tripStats.distanceTraveled) / 50 * 60))} <span className="text-[10px] opacity-50">MIN</span>
-                  </p>
-                </div>
-              </>
-            ) : null}
-
-            <div className="col-span-2 md:col-span-1">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 mb-1">Checkpoints</p>
-              <p className="text-lg font-black tracking-tight">{tripStats.checkpointsReached}</p>
-            </div>
-          </div>
-        </div>
-      )}
       <GoogleMap
         mapContainerStyle={mapContainerStyle}
         center={userLocation || defaultCenter}

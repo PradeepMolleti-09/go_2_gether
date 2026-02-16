@@ -12,12 +12,21 @@ interface UIContextValue {
   toggleLowBandwidth: () => void;
   unreadCount: number;
   setUnreadCount: (count: number | ((prev: number) => number)) => void;
+  theme: "light" | "dark";
+  setTheme: (theme: "light" | "dark") => void;
+  isCheckpointsOpen: boolean;
+  setIsCheckpointsOpen: (open: boolean) => void;
 }
 
 const UIContext = createContext<UIContextValue | undefined>(undefined);
 
 export const UIProvider = ({ children }: { children: ReactNode }) => {
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isCheckpointsOpen, setIsCheckpointsOpen] = useState(false);
+  const [theme, setThemeState] = useState<"light" | "dark">(() => {
+    const stored = window.localStorage.getItem("go2gether_theme");
+    return (stored as "light" | "dark") || "dark";
+  });
   const [lowBandwidth, setLowBandwidthState] = useState(() => {
     const stored = window.localStorage.getItem("go2gether_low_bandwidth");
     return stored === "true";
@@ -26,6 +35,11 @@ export const UIProvider = ({ children }: { children: ReactNode }) => {
     const stored = window.localStorage.getItem("go2gether_unread_count");
     return stored ? parseInt(stored, 10) : 0;
   });
+
+  const setTheme = (t: "light" | "dark") => {
+    setThemeState(t);
+    window.localStorage.setItem("go2gether_theme", t);
+  };
 
   const setUnreadCount = (count: number | ((prev: number) => number)) => {
     setUnreadCountState((prev) => {
@@ -50,7 +64,18 @@ export const UIProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <UIContext.Provider
-      value={{ isChatOpen, toggleChat, lowBandwidth, toggleLowBandwidth, unreadCount, setUnreadCount }}
+      value={{
+        isChatOpen,
+        toggleChat,
+        lowBandwidth,
+        toggleLowBandwidth,
+        unreadCount,
+        setUnreadCount,
+        theme,
+        setTheme,
+        isCheckpointsOpen,
+        setIsCheckpointsOpen
+      }}
     >
       {children}
     </UIContext.Provider>

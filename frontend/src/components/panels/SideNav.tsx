@@ -23,7 +23,17 @@ interface NavItem {
 }
 
 export const SideNav = () => {
-    const { lowBandwidth, toggleLowBandwidth, isChatOpen, toggleChat, unreadCount } = useUI();
+    const {
+        lowBandwidth,
+        toggleLowBandwidth,
+        isChatOpen,
+        toggleChat,
+        unreadCount,
+        theme,
+        setTheme,
+        isCheckpointsOpen,
+        setIsCheckpointsOpen
+    } = useUI();
     const {
         mapClickEnabled,
         setMapClickEnabled,
@@ -31,6 +41,7 @@ export const SideNav = () => {
         setCheckpointMode,
         destination,
         setDestination,
+        checkpoints,
         setCheckpoints,
         setTripStats,
     } = useMapContext();
@@ -112,6 +123,13 @@ export const SideNav = () => {
             onClick: toggleChat,
         },
         {
+            id: "checkpoints",
+            label: `Checkpoints (${checkpoints?.length ?? 0})`,
+            icon: "🚩",
+            active: isCheckpointsOpen,
+            onClick: () => setIsCheckpointsOpen(!isCheckpointsOpen),
+        },
+        {
             id: "members",
             label: `Members (${room?.members?.length ?? 0})`,
             icon: "👥",
@@ -124,10 +142,10 @@ export const SideNav = () => {
             onClick: () => setGalleryOpen(true),
         },
         {
-            id: "trip-info",
-            label: "Trip Info",
-            icon: "ℹ️",
-            onClick: () => setTripInfoOpen(true),
+            id: "theme",
+            label: theme === "dark" ? "Light Mode" : "Dark Mode",
+            icon: theme === "dark" ? "☀️" : "🌙",
+            onClick: () => setTheme(theme === "dark" ? "light" : "dark"),
         },
         {
             id: "bandwidth",

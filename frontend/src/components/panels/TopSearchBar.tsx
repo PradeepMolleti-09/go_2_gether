@@ -10,6 +10,7 @@ interface Suggestion {
 
 export const TopSearchBar = () => {
   const {
+    destination,
     setDestination,
     setSearchSuggestions,
   } = useMapContext();
@@ -106,6 +107,8 @@ export const TopSearchBar = () => {
       goToPlace(first);
     }
   };
+
+  if (!destination && room?.activeTrip) return null;
 
   return (
     <div className="pointer-events-none absolute left-0 right-0 top-4 z-20 flex justify-center px-4 md:px-6">
