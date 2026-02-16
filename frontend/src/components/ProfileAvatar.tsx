@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useRoom } from "../context/RoomContext";
+import { ConfirmationModal } from "./ui/ConfirmationModal";
 
 export const ProfileAvatar = () => {
     const { user, clearAuth } = useAuth();
     const { clearRoom } = useRoom();
     const [imageError, setImageError] = useState(false);
+    const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
     const handleLogout = () => {
         // Clear all session data
@@ -38,7 +40,7 @@ export const ProfileAvatar = () => {
     return (
         <div className="absolute top-4 right-4 z-30">
             <button
-                onClick={handleLogout}
+                onClick={() => setIsLogoutModalOpen(true)}
                 className="flex items-center gap-3 rounded-full bg-black/60 px-3 py-2 backdrop-blur-2xl hover:bg-black/80 transition-colors"
                 title={user.name}
             >
@@ -62,6 +64,17 @@ export const ProfileAvatar = () => {
                     {user.name}
                 </span>
             </button>
+
+            <ConfirmationModal
+                isOpen={isLogoutModalOpen}
+                title="Sign Out"
+                message="Are you sure you want to log out? Your session data will be cleared."
+                confirmLabel="Log Out"
+                cancelLabel="Cancel"
+                isDestructive={true}
+                onConfirm={handleLogout}
+                onCancel={() => setIsLogoutModalOpen(false)}
+            />
         </div>
     );
 };

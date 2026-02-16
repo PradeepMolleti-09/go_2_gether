@@ -35,8 +35,6 @@ export const SideNav = () => {
         setIsCheckpointsOpen
     } = useUI();
     const {
-        mapClickEnabled,
-        setMapClickEnabled,
         checkpointMode,
         setCheckpointMode,
         destination,
@@ -125,7 +123,7 @@ export const SideNav = () => {
         {
             id: "checkpoints",
             label: `Checkpoints (${checkpoints?.length ?? 0})`,
-            icon: "🚩",
+            icon: "📜",
             active: isCheckpointsOpen,
             onClick: () => setIsCheckpointsOpen(!isCheckpointsOpen),
         },
@@ -134,6 +132,12 @@ export const SideNav = () => {
             label: `Members (${room?.members?.length ?? 0})`,
             icon: "👥",
             onClick: () => setMembersOpen(true),
+        },
+        {
+            id: "trip-info",
+            label: "Room Info",
+            icon: "ℹ️",
+            onClick: () => setTripInfoOpen(true),
         },
         {
             id: "gallery",
@@ -154,13 +158,6 @@ export const SideNav = () => {
             active: lowBandwidth,
             onClick: toggleLowBandwidth,
         },
-        {
-            id: "mapMode",
-            label: mapClickEnabled ? "Click mode" : "Search mode",
-            icon: "📍",
-            active: mapClickEnabled,
-            onClick: () => setMapClickEnabled(!mapClickEnabled),
-        },
     ];
 
     if (isLeader) {
@@ -174,8 +171,8 @@ export const SideNav = () => {
 
         navItems.push({
             id: "checkpoint",
-            label: "Checkpoint",
-            icon: "🚩",
+            label: "Set Checkpoint",
+            icon: "📍",
             active: checkpointMode === "create",
             onClick: () => setCheckpointMode(checkpointMode === "create" ? "none" : "create"),
         });

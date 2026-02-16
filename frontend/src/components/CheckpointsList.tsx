@@ -100,7 +100,7 @@ export const CheckpointsList = () => {
                                             console.log("🔵 Remove button clicked for checkpoint:", checkpoint._id, checkpoint.title);
                                             setConfirmDelete({ id: checkpoint._id, title: checkpoint.title });
                                         }}
-                                        className="opacity-0 group-hover:opacity-100 transition-all scale-90 group-hover:scale-100 px-2 py-1 rounded-lg bg-red-500/20 text-[9px] font-bold text-red-400 hover:bg-red-500/30 flex-shrink-0"
+                                        className="transition-all px-2 py-1 rounded-lg bg-red-500/20 text-[9px] font-bold text-red-400 hover:bg-red-500/30 flex-shrink-0"
                                     >
                                         Remove
                                     </button>
