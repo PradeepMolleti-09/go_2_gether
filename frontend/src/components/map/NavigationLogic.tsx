@@ -70,7 +70,7 @@ export const NavigationLogic = ({ onArrival }: { onArrival?: () => void }) => {
         });
 
         // If we are near the end
-        if (destination && haversineKm(userLocation, destination) < 0.02) { // 20 meters
+        if (destination && haversineKm(userLocation, destination) < 0.015) { // 15 meters
             if (lastInstruction.current !== "arrived") {
                 speak("You have arrived at your destination");
                 lastInstruction.current = "arrived";

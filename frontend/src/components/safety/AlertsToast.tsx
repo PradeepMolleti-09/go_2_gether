@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSocket } from "../../context/SocketContext";
+import { playSound } from "../../utils/sounds";
 
 type Alert =
   | { id: string; type: "offline"; userId: string; at: number }
@@ -14,6 +15,7 @@ export const AlertsToast = () => {
     if (!socket) return;
 
     const handleManual = (payload: { userId: string; reason?: string; at: number }) => {
+      playSound("alert");
       setAlerts((prev) => [
         ...prev,
         {
@@ -27,6 +29,7 @@ export const AlertsToast = () => {
     };
 
     const handleAuto = (payload: { userId: string; type: "offline"; at: number }) => {
+      playSound("alert");
       setAlerts((prev) => [
         ...prev,
         {
@@ -39,6 +42,7 @@ export const AlertsToast = () => {
     };
 
     const handleIdle = (payload: { userId: string; type: "idle"; at: number }) => {
+      playSound("alert");
       setAlerts((prev) => [
         ...prev,
         {
@@ -77,8 +81,8 @@ export const AlertsToast = () => {
     top.type === "sos"
       ? "Manual SOS triggered"
       : top.type === "offline"
-      ? "Auto SOS: user offline"
-      : "Idle alert: no movement";
+        ? "Auto SOS: user offline"
+        : "Idle alert: no movement";
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-20 z-30 flex justify-center px-4">

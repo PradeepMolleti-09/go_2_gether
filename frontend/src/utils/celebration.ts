@@ -21,28 +21,18 @@ export const triggerCelebration = () => {
 };
 
 export const playCelebrationSound = () => {
-    // Simple synthesized fanfare using Web Audio API to avoid external assets for now
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContext) return;
+    try {
+        const audio = new Audio("/sound_effect.mp3");
+        audio.loop = true;
+        audio.volume = 0.5;
+        audio.play().catch(err => console.warn("Celebration play failed:", err));
 
-    const ctx = new AudioContext();
-    const now = ctx.currentTime;
-
-    // Notes: C4, E4, G4, C5 (Simple C Major arpeggio)
-    [261.63, 329.63, 392.00, 523.25].forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.value = freq;
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        const startTime = now + i * 0.15;
-        gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(0.3, startTime + 0.05);
-        gain.gain.exponentialRampToValueAtTime(0.01, startTime + 0.6);
-
-        osc.start(startTime);
-        osc.stop(startTime + 0.6);
-    });
+        // Stop after 8 seconds
+        setTimeout(() => {
+            audio.pause();
+            audio.currentTime = 0;
+        }, 8000);
+    } catch (err) {
+        console.error("Error playing celebration sound:", err);
+    }
 };

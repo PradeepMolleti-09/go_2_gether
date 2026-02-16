@@ -1,8 +1,8 @@
 const SOUNDS = {
-    message: "https://assets.mixkit.co/active_storage/sfx/2355/2355-preview.mp3",
-    checkpoint: "https://assets.mixkit.co/active_storage/sfx/2359/2359-preview.mp3",
-    system: "https://assets.mixkit.co/active_storage/sfx/2360/2360-preview.mp3",
-    alert: "https://assets.mixkit.co/active_storage/sfx/2555/2555-preview.mp3",
+    message: "/correct-bell-twinkle-jam-fx-1-00-05.mp3",
+    checkpoint: "/notification-bells-sms-received-jam-fx-medium-1-00-01.mp3",
+    system: "/correct-bell-twinkle-jam-fx-1-00-05.mp3",
+    alert: "/alarm-warning-beeps-ra-music-1-00-02.mp3",
 };
 
 export type SoundType = keyof typeof SOUNDS;
