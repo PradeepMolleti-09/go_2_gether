@@ -114,6 +114,14 @@ export const SideNav = () => {
             },
         },
         {
+            id: "refresh",
+            label: "Refresh",
+            icon: "🔄",
+            onClick: () => {
+                window.location.reload();
+            },
+        },
+        {
             id: "chat",
             label: "Chat",
             icon: "💬",

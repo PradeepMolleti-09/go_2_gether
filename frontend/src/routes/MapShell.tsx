@@ -19,7 +19,6 @@ import { useMapContext } from "../context/MapContext";
 import { WebGLShader } from "../components/ui/web-gl-shader";
 import { motion, AnimatePresence } from "framer-motion";
 import { RoomManager } from "../components/panels/RoomManager";
-import { PullToRefresh } from "../components/ui/PullToRefresh";
 
 export const MapShell = () => {
   const { user, isLoading } = useAuth();
@@ -63,64 +62,52 @@ const MapShellInner = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const handleRefresh = async () => {
-    // Simple page reload on refresh
-    return new Promise<void>((resolve) => {
-      setTimeout(() => {
-        window.location.reload();
-        resolve();
-      }, 500);
-    });
-  };
-
   return (
-    <PullToRefresh onRefresh={handleRefresh}>
-      <div className="relative h-[100dvh] w-full overflow-hidden bg-black">
-        <MapContainer />
-        <AlertsToast />
-        <ProfileAvatar />
-        {room?.leader?.id === user?.id && <TopSearchBar />}
-        <SideNav />
-        <RightChatPanel />
+    <div className="relative h-[100dvh] w-full overflow-hidden bg-black">
+      <MapContainer />
+      <AlertsToast />
+      <ProfileAvatar />
+      {room?.leader?.id === user?.id && <TopSearchBar />}
+      <SideNav />
+      <RightChatPanel />
 
-        {/* Room Selection Overlay */}
-        {!room && (
-          <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md">
-            <RoomManager />
-          </div>
-        )}
-
-        <div className="pointer-events-none absolute bottom-4 left-0 right-0 z-20 px-8 flex justify-center">
-          <BottomStatusPanel />
+      {/* Room Selection Overlay */}
+      {!room && (
+        <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-md">
+          <RoomManager />
         </div>
+      )}
 
-        <AnimatePresence>
-          {isCheckpointsOpen && (
-            <motion.div
-              initial={{ opacity: 0, x: -100 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -100 }}
-              className="absolute left-20 top-1/2 z-40 h-[300px] w-64 -translate-y-1/2"
-            >
-              <CheckpointsList />
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <CheckpointModal />
-        <TripReportModal
-          open={tripStats.endTime !== null}
-          onClose={() => {
-            setTripStats({
-              startTime: null,
-              endTime: null,
-              distanceTraveled: 0,
-              checkpointsReached: 0,
-            });
-            navigate("/", { replace: true });
-          }}
-        />
+      <div className="pointer-events-none absolute bottom-4 left-0 right-0 z-20 px-8 flex justify-center">
+        <BottomStatusPanel />
       </div>
-    </PullToRefresh>
+
+      <AnimatePresence>
+        {isCheckpointsOpen && (
+          <motion.div
+            initial={{ opacity: 0, x: -100 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -100 }}
+            className="absolute left-20 top-1/2 z-40 h-[300px] w-64 -translate-y-1/2"
+          >
+            <CheckpointsList />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <CheckpointModal />
+      <TripReportModal
+        open={tripStats.endTime !== null}
+        onClose={() => {
+          setTripStats({
+            startTime: null,
+            endTime: null,
+            distanceTraveled: 0,
+            checkpointsReached: 0,
+          });
+          navigate("/", { replace: true });
+        }}
+      />
+    </div>
   );
 };
