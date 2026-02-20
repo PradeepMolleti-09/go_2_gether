@@ -19,6 +19,7 @@ import { useMapContext } from "../context/MapContext";
 import { WebGLShader } from "../components/ui/web-gl-shader";
 import { motion, AnimatePresence } from "framer-motion";
 import { RoomManager } from "../components/panels/RoomManager";
+import { QuickGuide } from "../components/ui/QuickGuide";
 
 export const MapShell = () => {
   const { user, isLoading } = useAuth();
@@ -96,6 +97,7 @@ const MapShellInner = () => {
       </AnimatePresence>
 
       <CheckpointModal />
+      <QuickGuide />
       <TripReportModal
         open={tripStats.endTime !== null}
         onClose={() => {

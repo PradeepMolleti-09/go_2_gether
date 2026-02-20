@@ -66,15 +66,15 @@ export const BottomStatusPanel = () => {
                     initial={{ y: 100, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     exit={{ y: 100, opacity: 0 }}
-                    className="pointer-events-auto flex items-center gap-6 rounded-[32px] border border-white/10 bg-black/80 px-8 py-4 text-white shadow-2xl backdrop-blur-3xl transition-all"
+                    className="pointer-events-auto flex flex-col md:flex-row items-center gap-4 md:gap-6 rounded-[24px] md:rounded-[32px] border border-white/10 bg-black/80 px-5 md:px-8 py-3 md:py-4 text-white shadow-2xl backdrop-blur-3xl transition-all w-full max-w-[90vw] md:w-auto"
                 >
                     {/* BEFORE TRIP STARTS: Show destination info */}
                     {destination && !isTripActive && (
                         <>
                             {/* Destination Info */}
-                            <div className="flex border-r border-white/10 pr-6 mr-6 flex-col gap-1 min-w-[150px]">
+                            <div className="flex border-b md:border-b-0 md:border-r border-white/10 pb-2 md:pb-0 md:pr-6 md:mr-6 flex-col gap-1 w-full md:min-w-[150px]">
                                 <div className="flex items-center justify-between mb-0.5">
-                                    <span className="text-[10px] uppercase font-black tracking-widest text-neutral-500">Target</span>
+                                    <span className="text-[9px] md:text-[10px] uppercase font-black tracking-widest text-neutral-500">Target</span>
                                     {isLeader && (
                                         <button
                                             onClick={handleClearDestination}
@@ -84,24 +84,24 @@ export const BottomStatusPanel = () => {
                                         </button>
                                     )}
                                 </div>
-                                <div className="text-[13px] font-bold tracking-tight truncate max-w-[200px]">
+                                <div className="text-[11px] md:text-[13px] font-bold tracking-tight truncate max-w-full md:max-w-[200px]">
                                     {destination.description}
                                 </div>
                             </div>
 
                             {/* Distance & ETA */}
-                            <div className="flex items-center gap-10">
+                            <div className="flex items-center justify-around md:justify-start w-full md:w-auto gap-6 md:gap-10">
                                 <div className="flex flex-col gap-0.5">
-                                    <span className="text-[10px] uppercase font-black tracking-widest text-neutral-500">Distance</span>
-                                    <div className="text-lg font-black tracking-tight">
+                                    <span className="text-[9px] md:text-[10px] uppercase font-black tracking-widest text-neutral-500">Distance</span>
+                                    <div className="text-sm md:text-lg font-black tracking-tight">
                                         {calculatedStats.distanceKm !== null
                                             ? `${calculatedStats.distanceKm.toFixed(1)} km`
                                             : "—"}
                                     </div>
                                 </div>
                                 <div className="flex flex-col gap-0.5">
-                                    <span className="text-[10px] uppercase font-black tracking-widest text-neutral-500">ETA</span>
-                                    <div className="text-lg font-black tracking-tight text-emerald-400">
+                                    <span className="text-[9px] md:text-[10px] uppercase font-black tracking-widest text-neutral-500">ETA</span>
+                                    <div className="text-sm md:text-lg font-black tracking-tight text-emerald-400">
                                         {calculatedStats.etaMinutes !== null
                                             ? `~${Math.round(calculatedStats.etaMinutes)} min`
                                             : "—"}
@@ -113,24 +113,24 @@ export const BottomStatusPanel = () => {
 
                     {/* AFTER TRIP STARTS: Show traveled distance, remaining distance, and ETA */}
                     {isTripActive && (
-                        <div className="flex items-center gap-10">
+                        <div className="flex items-center justify-around md:justify-start w-full md:w-auto gap-6 md:gap-10">
                             <div className="flex flex-col gap-0.5">
-                                <span className="text-[10px] uppercase font-black tracking-widest text-neutral-500">Traveled</span>
-                                <div className="text-lg font-black tracking-tight text-indigo-400">
+                                <span className="text-[9px] md:text-[10px] uppercase font-black tracking-widest text-neutral-500">Traveled</span>
+                                <div className="text-sm md:text-lg font-black tracking-tight text-indigo-400">
                                     {tripStats.distanceTraveled.toFixed(2)} km
                                 </div>
                             </div>
                             {destination && calculatedStats.distanceKm !== null && (
                                 <>
                                     <div className="flex flex-col gap-0.5">
-                                        <span className="text-[10px] uppercase font-black tracking-widest text-neutral-500">Remaining</span>
-                                        <div className="text-lg font-black tracking-tight">
+                                        <span className="text-[9px] md:text-[10px] uppercase font-black tracking-widest text-neutral-500">Left</span>
+                                        <div className="text-sm md:text-lg font-black tracking-tight">
                                             {calculatedStats.distanceKm.toFixed(1)} km
                                         </div>
                                     </div>
                                     <div className="flex flex-col gap-0.5">
-                                        <span className="text-[10px] uppercase font-black tracking-widest text-neutral-500">ETA</span>
-                                        <div className="text-lg font-black tracking-tight text-emerald-400">
+                                        <span className="text-[9px] md:text-[10px] uppercase font-black tracking-widest text-neutral-500">ETA</span>
+                                        <div className="text-sm md:text-lg font-black tracking-tight text-emerald-400">
                                             ~{Math.round(calculatedStats.etaMinutes!)} min
                                         </div>
                                     </div>

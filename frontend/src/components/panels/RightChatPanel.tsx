@@ -16,7 +16,8 @@ interface ChatMessage {
   text?: string;
   imageUrl?: string;
   mediaId?: string;
-  type?: "text" | "image" | "checkpoint" | "member";
+  type?: "text" | "image" | "checkpoint" | "member" | "voice";
+  audioData?: string;
   location?: { lat: number; lng: number };
   createdAt: number;
   isCheckpointNotification?: boolean;
@@ -267,9 +268,19 @@ export const RightChatPanel = () => {
 
   const lastProcessedMessageId = useRef<string | null>(null);
 
+  // Audio Playback for Voice Messages
   useEffect(() => {
     if (messages.length === 0) return;
     const lastMessage = messages[messages.length - 1];
+
+    // If it's a voice message and from someone else, play it automatically
+    if (lastMessage.type === "voice" && lastMessage.audioData && lastMessage.userId !== user?.id) {
+      // Only play if it's the first time we see this message to avoid replay on re-renders
+      if (lastMessage.id !== lastProcessedMessageId.current) {
+        const audio = new Audio(lastMessage.audioData);
+        audio.play().catch(err => console.error("Auto-play failed:", err));
+      }
+    }
 
     // If chat is open, mark all as seen
     if (isChatOpen) {
@@ -286,6 +297,76 @@ export const RightChatPanel = () => {
       lastProcessedMessageId.current = lastMessage.id;
     }
   }, [messages, isChatOpen, user?.id, setUnreadCount]);
+
+  // Voice Recording Logic
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = () => {
+          const base64Audio = reader.result as string;
+          sendVoiceMessage(base64Audio);
+        };
+        // Stop all tracks to release the microphone
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      showNotification("Recording...", "info");
+    } catch (err) {
+      console.error("Mic access denied or error:", err);
+      showNotification("Could not access microphone", "error");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const sendVoiceMessage = (audioData: string) => {
+    if (!socket || !room?._id || !user) return;
+
+    const payload = {
+      roomId: room._id,
+      text: "🎤 Voice message",
+      audioData,
+      type: "voice",
+      userName: user.name,
+      userAvatar: user.avatarUrl,
+    };
+
+    socket.emit("chat:message", payload);
+
+    // Local dispatch
+    const localPayload = {
+      ...payload,
+      userId: user.id,
+      createdAt: Date.now(),
+      id: `${Date.now()}-voice`,
+    };
+    window.dispatchEvent(new CustomEvent("local-chat-message", { detail: localPayload }));
+  };
 
   return (
     <div className={`pointer-events-none fixed md:absolute transition-all duration-500 ease-in-out
@@ -377,7 +458,14 @@ export const RightChatPanel = () => {
                       <div
                         className={`group relative overflow-hidden rounded-2xl px-3 py-2 text-[12px] transition-all ${isSelf ? "bg-white text-black" : "bg-white/10 text-white"
                           } ${m.isCheckpointNotification ? (m.isDeleted ? "border border-red-500/30 bg-red-500/5 opacity-60" : "border border-indigo-500/50 bg-indigo-500/10") : ""} cursor-pointer hover:ring-1 hover:ring-white/30`}
-                        onClick={() => handleMessageClick(m)}
+                        onClick={() => {
+                          if (m.type === 'voice' && m.audioData) {
+                            const audio = new Audio(m.audioData);
+                            audio.play().catch(console.error);
+                          } else {
+                            handleMessageClick(m);
+                          }
+                        }}
                       >
                         {m.imageUrl && (
                           <div className="mb-2 overflow-hidden rounded-lg border border-white/10 shadow-lg">
@@ -400,7 +488,15 @@ export const RightChatPanel = () => {
                             </div>
                           </div>
                         )}
-                        <p className={`whitespace-pre-wrap ${m.isDeleted ? "line-through text-neutral-500" : ""}`}>{m.text}</p>
+                        <p className={`whitespace-pre-wrap ${m.isDeleted ? "line-through text-neutral-500" : ""}`}>
+                          {m.type === 'voice' ? (
+                            <span className="flex items-center gap-2">
+                              <span>🔊</span>
+                              <span>Voice Message</span>
+                              <span className="text-[9px] opacity-60">(Auto-playing)</span>
+                            </span>
+                          ) : m.text}
+                        </p>
                         {isSelf && <div className="mt-1 text-right text-[9px] opacity-40">{time}</div>}
 
                         {m.isDeleted ? (
@@ -427,6 +523,19 @@ export const RightChatPanel = () => {
           <form className="flex items-center gap-2" onSubmit={handleSubmit}>
             <button
               type="button"
+              className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-white transition-all ${isRecording ? "bg-red-500 animate-pulse scale-110" : "bg-white/10 hover:bg-white/20"}`}
+              onMouseDown={startRecording}
+              onMouseUp={stopRecording}
+              onMouseLeave={stopRecording}
+              onTouchStart={startRecording}
+              onTouchEnd={stopRecording}
+              disabled={uploading}
+              title="Hold to record voice"
+            >
+              🎤
+            </button>
+            <button
+              type="button"
               className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
@@ -443,18 +552,24 @@ export const RightChatPanel = () => {
             />
             <input
               className="flex-1 rounded-full bg-white/10 px-4 py-2 text-[12px] text-white placeholder:text-neutral-500 outline-none focus:bg-white/15 focus:ring-1 focus:ring-white/20 transition-all"
-              placeholder="Message..."
+              placeholder={isRecording ? "Recording voice..." : "Message..."}
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              disabled={isRecording}
             />
             <button
               type="submit"
               className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white text-black hover:bg-neutral-200 disabled:opacity-50"
-              disabled={!input.trim()}
+              disabled={!input.trim() || isRecording}
             >
               →
             </button>
           </form>
+          {isRecording && (
+            <div className="absolute -top-10 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-red-500 px-3 py-1 text-white text-[10px] font-bold shadow-lg animate-bounce">
+              <span>●</span> Recording Voice... Release to send
+            </div>
+          )}
         </div>
       </div>
 

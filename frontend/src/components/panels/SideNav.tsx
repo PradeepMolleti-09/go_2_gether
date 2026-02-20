@@ -227,41 +227,96 @@ export const SideNav = () => {
         });
     }
 
+    const [isExpanded, setIsExpanded] = useState(false);
+
     return (
         <>
-            <div className="pointer-events-none absolute left-4 top-40 md:top-1/2 z-30 flex md:-translate-y-1/2 flex-col items-start gap-2 md:gap-3 overflow-y-auto md:overflow-visible no-scrollbar pb-20 md:pb-0">
-                {navItems.map((item) => (
+            <div
+                className={`pointer-events-none absolute left-0 top-0 z-[60] flex h-full flex-col transition-all duration-500 ease-in-out md:left-4 md:top-1/2 md:h-auto md:-translate-y-1/2 md:gap-3
+                    ${isExpanded ? "w-64 md:w-56" : "w-0 md:w-16"}
+                `}
+                onMouseEnter={() => setIsExpanded(true)}
+                onMouseLeave={() => setIsExpanded(false)}
+            >
+                {/* Mobile Toggle Button (Visible only on mobile when not expanded) */}
+                {!isExpanded && (
                     <button
-                        key={item.id}
-                        onClick={item.onClick}
-                        disabled={item.disabled}
-                        className={`group pointer-events-auto relative flex h-10 w-10 md:h-12 md:w-12 shrink-0 items-center justify-center rounded-xl md:rounded-2xl border transition-all duration-500 ease-in-out hover:scale-110 active:scale-95 disabled:opacity-50 ${item.active ? "bg-white/20 border-white/20 shadow-white/5" :
-                            item.accent ? "bg-red-500/20 border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2)] hover:bg-red-500" : "bg-black/60 border-white/10 shadow-2xl backdrop-blur-3xl hover:bg-black/80"
-                            }`}
-                        title={item.label}
+                        onClick={() => setIsExpanded(true)}
+                        className="pointer-events-auto absolute left-4 top-24 flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-black/60 shadow-2xl backdrop-blur-3xl md:hidden"
                     >
-                        <span className={`text-base md:text-lg transition-all duration-500 ${item.accent ? "animate-pulse" : (item.active ? "scale-110 rotate-[360deg]" : "grayscale opacity-70 group-hover:grayscale-0 group-hover:opacity-100")}`}>
-                            {item.icon}
-                        </span>
-
-                        {/* Unread Badge for Chat */}
-                        {item.id === "chat" && unreadCount > 0 && (
-                            <div className="absolute -right-1 -top-1 flex h-4 w-4 md:h-5 md:w-5 items-center justify-center rounded-full bg-red-500 text-[8px] md:text-[9px] font-black text-white shadow-lg animate-pulse border-2 border-black">
-                                {unreadCount > 9 ? "9+" : unreadCount}
-                            </div>
-                        )}
-
-                        {/* Tooltip - Hidden on mobile */}
-                        <div className="hidden md:block absolute left-16 scale-0 bg-black/90 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-white rounded-lg border border-white/10 opacity-0 transition-all duration-300 group-hover:scale-100 group-hover:opacity-100 whitespace-nowrap shadow-2xl pointer-events-none">
-                            {item.label}
-                        </div>
-
-                        {/* Selection Dot - Hidden on mobile */}
-                        {item.active && (
-                            <div className="hidden md:block absolute -left-1 h-6 w-1 rounded-full bg-white shadow-[0_0_15px_rgba(255,255,255,0.8)] animate-pulse" />
-                        )}
+                        <span className="text-lg">☰</span>
                     </button>
-                ))}
+                )}
+
+                <div className={`pointer-events-auto flex h-full flex-col gap-2 overflow-y-auto overflow-x-hidden bg-black/90 p-4 shadow-2xl backdrop-blur-3xl transition-all duration-500 no-scrollbar md:h-auto md:rounded-3xl md:border md:border-white/10 md:bg-black/60
+                    ${isExpanded ? "translate-x-0 opacity-100" : "-translate-x-full md:translate-x-0 md:opacity-100"}
+                `}>
+                    {/* Header for expanded view */}
+                    {isExpanded && (
+                        <div className="mb-4 flex items-center justify-between px-2 md:hidden">
+                            <span className="text-xs font-black uppercase tracking-widest text-white/40">Menu</span>
+                            <button onClick={() => setIsExpanded(false)} className="text-white/60 hover:text-white">✕</button>
+                        </div>
+                    )}
+
+                    {navItems.map((item) => (
+                        <button
+                            key={item.id}
+                            onClick={() => {
+                                item.onClick();
+                                if (window.innerWidth < 768) setIsExpanded(false);
+                            }}
+                            disabled={item.disabled}
+                            className={`group relative flex h-12 w-full shrink-0 items-center gap-4 rounded-xl border transition-all duration-300 hover:scale-[1.02] active:scale-95 disabled:opacity-50 
+                                ${item.active
+                                    ? "bg-indigo-500/20 border-indigo-500/40 shadow-[0_0_20px_rgba(99,102,241,0.2)]"
+                                    : item.accent
+                                        ? "bg-red-500/20 border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.2)] hover:bg-red-500/30"
+                                        : "bg-white/5 border-white/10 hover:bg-white/10"
+                                }
+                                ${isExpanded ? "px-4" : "justify-center px-0"}
+                            `}
+                            title={isExpanded ? "" : item.label}
+                        >
+                            <div className="relative flex min-w-[24px] items-center justify-center">
+                                <span className={`text-xl transition-all duration-500 ${item.accent ? "animate-pulse" : (item.active ? "scale-110" : "opacity-70 group-hover:opacity-100")}`}>
+                                    {item.icon}
+                                </span>
+
+                                {/* Unread Badge for Chat in collapsed mode */}
+                                {!isExpanded && item.id === "chat" && unreadCount > 0 && (
+                                    <div className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[8px] font-black text-white shadow-lg animate-pulse border border-black">
+                                        {unreadCount > 9 ? "9+" : unreadCount}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Label - visible when expanded */}
+                            <div className={`overflow-hidden transition-all duration-500 ${isExpanded ? "w-auto opacity-100" : "w-0 opacity-0"}`}>
+                                <span className={`whitespace-nowrap text-sm font-bold tracking-wide ${item.active ? "text-white" : "text-white/80"}`}>
+                                    {item.label}
+                                </span>
+                                {item.id === "chat" && unreadCount > 0 && isExpanded && (
+                                    <span className="ml-2 rounded-full bg-red-500 px-1.5 py-0.5 text-[8px] font-black text-white">
+                                        {unreadCount}
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Unread Badge for Chat (Alternative positioning if needed) */}
+                            {item.id === "chat" && unreadCount > 0 && isExpanded && (
+                                <div className="ml-auto rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-black text-white shadow-lg animate-pulse">
+                                    {unreadCount > 9 ? "9+" : unreadCount}
+                                </div>
+                            )}
+
+                            {/* Selection Marker */}
+                            {item.active && (
+                                <div className="absolute -left-1 h-6 w-1 rounded-full bg-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.8)] animate-pulse" />
+                            )}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             <input
