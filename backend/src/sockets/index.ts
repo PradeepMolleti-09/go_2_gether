@@ -88,6 +88,22 @@ export const initSocket = (server: http.Server) => {
       }
     });
 
+    socket.on("chat:delete", (payload) => {
+      const { roomId } = payload;
+      if (roomId) {
+        socket.to(roomId).emit("chat:deleted", payload);
+        socket.emit("chat:deleted", payload);
+      }
+    });
+
+    socket.on("chat:edit", (payload) => {
+      const { roomId } = payload;
+      if (roomId) {
+        socket.to(roomId).emit("chat:edited", payload);
+        socket.emit("chat:edited", payload);
+      }
+    });
+
     socket.on("trip:destination", (payload) => {
       const { roomId } = payload;
       if (roomId) {

@@ -5,7 +5,7 @@ import { useRoom } from "../../context/RoomContext";
 import { useAuth } from "../../context/AuthContext";
 import { useMapContext } from "../../context/MapContext";
 import { useNotification } from "../../context/NotificationContext";
-import { uploadPhoto, deleteMedia } from "../../services/mediaService";
+import { uploadPhoto } from "../../services/mediaService";
 import { playSound } from "../../utils/sounds";
 
 interface ChatMessage {
@@ -26,125 +26,185 @@ interface ChatMessage {
 }
 
 export const RightChatPanel = () => {
-  const { isChatOpen, toggleChat, unreadCount, setUnreadCount } = useUI();
+  const { isChatOpen, toggleChat, setUnreadCount } = useUI();
   const { socket } = useSocket();
   const { room } = useRoom();
   const { user } = useAuth();
   const { setFocusLocation, memberPositions } = useMapContext();
   const { showNotification } = useNotification();
+
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editInput, setEditInput] = useState("");
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const lastProcessedMessageId = useRef<string | null>(null);
 
-  // Hydrate messages from localStorage on mount
+  // Audio Recording State
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  // Hydrate messages from localStorage
   useEffect(() => {
-    const stored = window.localStorage.getItem(`go2gether_chat_${room?._id}`);
-    if (!stored) return;
-    try {
-      const parsed = JSON.parse(stored) as ChatMessage[];
-      setMessages(parsed);
-    } catch {
-      window.localStorage.removeItem(`go2gether_chat_${room?._id}`);
+    if (!room?._id) return;
+    const stored = window.localStorage.getItem(`go2gether_chat_${room._id}`);
+    if (stored) {
+      try {
+        setMessages(JSON.parse(stored));
+      } catch (e) {
+        console.error("Local storage corruption", e);
+      }
     }
   }, [room?._id]);
 
+  // Socket Listeners
   useEffect(() => {
-    if (!socket) return;
-    const handler = (payload: any) => {
-      const newMessage: ChatMessage = {
+    if (!socket || !room?._id) return;
+
+    const handleNewMessage = (payload: any) => {
+      const msg: ChatMessage = {
+        ...payload,
         id: payload.id || `${Date.now()}-${Math.random()}`,
-        userId: payload.userId,
-        userName: payload.userName,
-        userAvatar: payload.userAvatar,
-        text: payload.text,
-        imageUrl: payload.imageUrl,
-        mediaId: payload.mediaId,
-        location: payload.location,
-        isCheckpointNotification: payload.isCheckpointNotification,
-        checkpointId: payload.checkpointId,
-        isDeleted: payload.isDeleted,
-        createdAt: payload.createdAt ?? Date.now(),
+        createdAt: payload.createdAt || Date.now()
       };
 
       setMessages((prev) => {
-        const updated = [...prev, newMessage];
-        if (room?._id) {
-          window.localStorage.setItem(
-            `go2gether_chat_${room._id}`,
-            JSON.stringify(updated.slice(-100)) // Keep last 100
-          );
-        }
+        const updated = [...prev, msg].slice(-100);
+        window.localStorage.setItem(`go2gether_chat_${room._id}`, JSON.stringify(updated));
 
-        // Play sound if not from self
-        if (newMessage.userId !== user?.id) {
+        // Effects for new messages
+        if (msg.userId !== user?.id) {
           playSound("message");
         }
-
         return updated;
       });
     };
 
-    socket.on("chat:message", handler);
-
-    socket.on("checkpoint:deleted", (payload: { checkpointId: string }) => {
+    const handleDelete = (payload: { id: string }) => {
       setMessages((prev) => {
-        const updated = prev.map((msg) => {
-          if (msg.checkpointId === payload.checkpointId) {
-            return {
-              ...msg,
-              text: msg.text?.includes("(REMOVED)") ? msg.text : `${msg.text} (REMOVED)`,
-              isDeleted: true
-            };
-          }
-          return msg;
-        });
-        if (room?._id) {
-          window.localStorage.setItem(
-            `go2gether_chat_${room._id}`,
-            JSON.stringify(updated)
-          );
-        }
+        const updated = prev.filter(m => m.id !== payload.id);
+        window.localStorage.setItem(`go2gether_chat_${room._id}`, JSON.stringify(updated));
         return updated;
       });
-    });
-
-    const localHandler = (e: any) => {
-      handler(e.detail);
     };
-    window.addEventListener("local-chat-message", localHandler as EventListener);
+
+    const handleEdit = (payload: { id: string, text: string }) => {
+      setMessages((prev) => {
+        const updated = prev.map(m => m.id === payload.id ? { ...m, text: payload.text } : m);
+        window.localStorage.setItem(`go2gether_chat_${room._id}`, JSON.stringify(updated));
+        return updated;
+      });
+    };
+
+    socket.on("chat:message", handleNewMessage);
+    socket.on("chat:deleted", handleDelete);
+    socket.on("chat:edited", handleEdit);
 
     return () => {
-      socket.off("chat:message", handler);
-      socket.off("checkpoint:deleted");
-      window.removeEventListener("local-chat-message", localHandler as EventListener);
+      socket.off("chat:message", handleNewMessage);
+      socket.off("chat:deleted", handleDelete);
+      socket.off("chat:edited", handleEdit);
     };
   }, [socket, room?._id, user?.id]);
 
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
+  // Auto-playback & Unread logic
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const lastMsg = messages[messages.length - 1];
+
+    if (lastMsg.id !== lastProcessedMessageId.current) {
+      // Auto-play voice messages from others
+      if (lastMsg.type === "voice" && lastMsg.audioData && lastMsg.userId !== user?.id) {
+        const audio = new Audio(lastMsg.audioData);
+        audio.play().catch(console.error);
+      }
+
+      // Handle unread counts
+      if (!isChatOpen && lastMsg.userId !== user?.id) {
+        setUnreadCount((prev: number) => prev + 1);
+      }
+      lastProcessedMessageId.current = lastMsg.id;
+    }
+
+    if (isChatOpen) {
+      setUnreadCount(0);
+    }
+  }, [messages, isChatOpen, user?.id, setUnreadCount]);
+
+  // Auto-scroll
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, isChatOpen]);
+
+  // Actions
+  const sendMessage = (e?: FormEvent) => {
+    e?.preventDefault();
     if (!socket || !room?._id || !user || !input.trim()) return;
-    const text = input.trim();
+
     const payload = {
       roomId: room._id,
-      text,
+      text: input.trim(),
       userName: user.name,
       userAvatar: user.avatarUrl,
+      userId: user.id,
+      createdAt: Date.now(),
+      type: "text"
     };
 
     socket.emit("chat:message", payload);
-
-    // Dispatch local event for immediate feedback
-    const localPayload = {
-      ...payload,
-      userId: user.id,
-      createdAt: Date.now(),
-      id: `${Date.now()}-self`,
-    };
-    window.dispatchEvent(new CustomEvent("local-chat-message", { detail: localPayload }));
-
     setInput("");
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = () => {
+          const base64 = reader.result as string;
+          if (!socket || !user || !room?._id) return;
+          socket.emit("chat:message", {
+            roomId: room._id,
+            type: "voice",
+            audioData: base64,
+            text: "🎤 Voice Announcement",
+            userName: user.name,
+            userAvatar: user.avatarUrl,
+            userId: user.id
+          });
+        };
+        stream.getTracks().forEach(t => t.stop());
+      };
+
+      recorder.start();
+      setIsRecording(true);
+      playSound("system");
+    } catch (err) {
+      showNotification("Microphone access denied", "error");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -157,55 +217,23 @@ export const RightChatPanel = () => {
       const result = await uploadPhoto(tripId, file);
       const media = result.media;
 
-      const payload = {
+      if (!socket) return;
+      socket.emit("chat:message", {
         roomId: room._id,
         imageUrl: media.url,
         mediaId: media._id,
         userName: user.name,
         userAvatar: user.avatarUrl,
-        text: "Shared a photo",
-      };
-
-      if (!socket) return;
-      socket.emit("chat:message", payload);
-
-      const localPayload = {
-        ...payload,
         userId: user.id,
-        createdAt: Date.now(),
-        id: `${Date.now()}-self`,
-      };
-      window.dispatchEvent(new CustomEvent("local-chat-message", { detail: localPayload }));
-
+        text: "Shared a photo",
+        type: "image"
+      });
       showNotification("Photo shared!", "success");
     } catch (err) {
-      console.error("Upload failed", err);
       showNotification("Failed to upload photo", "error");
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  };
-
-  const handleDeleteMessage = async (msg: ChatMessage) => {
-    if (!msg.mediaId || !user) return;
-    if (msg.userId !== user.id) return;
-
-    if (!window.confirm("Delete this photo?")) return;
-
-    try {
-      await deleteMedia(msg.mediaId);
-      setMessages((prev) => {
-        const updated = prev.filter((m) => m.id !== msg.id);
-        if (room?._id) {
-          window.localStorage.setItem(`go2gether_chat_${room._id}`, JSON.stringify(updated));
-        }
-        return updated;
-      });
-      showNotification("Photo deleted", "success");
-    } catch (err) {
-      console.error("Delete failed", err);
-      showNotification("Failed to delete photo", "error");
     }
   };
 
@@ -222,373 +250,163 @@ export const RightChatPanel = () => {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
     } catch (error) {
-      console.error("Download failed:", error);
-      // Fallback to opening in new tab if direct download fails
       const link = document.createElement("a");
       link.href = url;
       link.target = "_blank";
-      document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
     }
+  };
+
+  const deleteMsg = (id: string) => {
+    if (window.confirm("Delete this message?")) {
+      socket?.emit("chat:delete", { roomId: room?._id, id });
+    }
+  };
+
+  const startEdit = (msg: ChatMessage) => {
+    setEditingId(msg.id);
+    setEditInput(msg.text || "");
+  };
+
+  const saveEdit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!editingId || !editInput.trim()) return;
+    socket?.emit("chat:edit", { roomId: room?._id, id: editingId, text: editInput.trim() });
+    setEditingId(null);
   };
 
   const handleMessageClick = (msg: ChatMessage) => {
-    if (msg.isDeleted) {
-      showNotification("This checkpoint has been removed", "warning");
-      return;
+    if (msg.location) setFocusLocation(msg.location);
+    else if (msg.userId && memberPositions[msg.userId]) {
+      setFocusLocation(memberPositions[msg.userId]);
     }
-    if (msg.location) {
-      setFocusLocation(msg.location);
-      showNotification(`Focusing on checkpoint location`, "info");
-    } else if (msg.userId) {
-      const pos = memberPositions[msg.userId];
-      if (pos) {
-        setFocusLocation(pos);
-        showNotification(`Focusing on ${msg.userName || "member"}'s location`, "info");
-      } else {
-        showNotification("Member's location not available", "warning");
-      }
-    }
-  };
-
-  // Auto-scroll to bottom
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages]);
-
-  // Handle unread count
-  useEffect(() => {
-    if (isChatOpen) {
-      setUnreadCount(0);
-    }
-  }, [isChatOpen, setUnreadCount]);
-
-  const lastProcessedMessageId = useRef<string | null>(null);
-
-  // Audio Playback for Voice Messages
-  useEffect(() => {
-    if (messages.length === 0) return;
-    const lastMessage = messages[messages.length - 1];
-
-    // If it's a voice message and from someone else, play it automatically
-    if (lastMessage.type === "voice" && lastMessage.audioData && lastMessage.userId !== user?.id) {
-      // Only play if it's the first time we see this message to avoid replay on re-renders
-      if (lastMessage.id !== lastProcessedMessageId.current) {
-        const audio = new Audio(lastMessage.audioData);
-        audio.play().catch(err => console.error("Auto-play failed:", err));
-      }
-    }
-
-    // If chat is open, mark all as seen
-    if (isChatOpen) {
-      lastProcessedMessageId.current = lastMessage.id;
-      setUnreadCount(0);
-      return;
-    }
-
-    // If chat is closed and we have a new message from someone else
-    if (!isChatOpen && lastMessage.id !== lastProcessedMessageId.current) {
-      if (lastMessage.userId !== user?.id) {
-        setUnreadCount((prev: number) => prev + 1);
-      }
-      lastProcessedMessageId.current = lastMessage.id;
-    }
-  }, [messages, isChatOpen, user?.id, setUnreadCount]);
-
-  // Voice Recording Logic
-  const [isRecording, setIsRecording] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        const reader = new FileReader();
-        reader.readAsDataURL(audioBlob);
-        reader.onloadend = () => {
-          const base64Audio = reader.result as string;
-          sendVoiceMessage(base64Audio);
-        };
-        // Stop all tracks to release the microphone
-        stream.getTracks().forEach(track => track.stop());
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-      showNotification("Recording...", "info");
-    } catch (err) {
-      console.error("Mic access denied or error:", err);
-      showNotification("Could not access microphone", "error");
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  };
-
-  const sendVoiceMessage = (audioData: string) => {
-    if (!socket || !room?._id || !user) return;
-
-    const payload = {
-      roomId: room._id,
-      text: "🎤 Voice message",
-      audioData,
-      type: "voice",
-      userName: user.name,
-      userAvatar: user.avatarUrl,
-    };
-
-    socket.emit("chat:message", payload);
-
-    // Local dispatch
-    const localPayload = {
-      ...payload,
-      userId: user.id,
-      createdAt: Date.now(),
-      id: `${Date.now()}-voice`,
-    };
-    window.dispatchEvent(new CustomEvent("local-chat-message", { detail: localPayload }));
   };
 
   return (
-    <div className={`pointer-events-none fixed md:absolute transition-all duration-500 ease-in-out
-      ${isChatOpen
-        ? "inset-0 z-[100] md:z-20 md:inset-auto md:right-4 md:top-24 md:h-[70vh] md:w-80 lg:w-96 flex-col overflow-hidden"
-        : "right-4 top-24 w-0 h-0 opacity-0 pointer-events-none z-20"
-      }`}>
-      <div
-        className={`pointer-events-auto flex h-full w-full flex-col overflow-hidden rounded-none md:rounded-3xl border border-white/10 bg-black/80 text-neutral-100 shadow-2xl backdrop-blur-3xl transition-all duration-500
-          ${isChatOpen ? "translate-x-0 opacity-100 scale-100" : "translate-x-full opacity-0 scale-95"}`}
-      >
-        <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
-          <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-neutral-400">Group Chat</span>
-          <div className="flex items-center gap-3">
-            {unreadCount > 0 && (
-              <span className="rounded-full bg-indigo-500 px-2 py-0.5 text-[10px] font-bold text-white">
-                {unreadCount} New
-              </span>
-            )}
-            <button
-              onClick={() => toggleChat()}
-              className="relative md:hidden text-white/60 hover:text-white"
-            >
-              ✕
-            </button>
-          </div>
+    <div className={`fixed inset-0 z-[100] flex flex-col bg-black/90 backdrop-blur-3xl transition-all duration-500 md:absolute md:inset-auto md:right-4 md:top-24 md:h-[70vh] md:w-96 md:rounded-[40px] md:border md:border-white/10 md:shadow-2xl ${isChatOpen ? "opacity-100" : "pointer-events-none opacity-0 translate-x-12"}`}>
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-white/5 px-6 py-5">
+        <div className="flex flex-col">
+          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40">Secure Room</span>
+          <h3 className="text-lg font-black text-white">Group Chat</h3>
         </div>
+        <button onClick={toggleChat} className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/5 text-white/60 transition-all hover:bg-white/10 active:scale-90">✕</button>
+      </div>
 
-        <div
-          ref={scrollRef}
-          className="flex-1 overflow-y-auto overflow-x-hidden p-4 flex flex-col scroll-smooth custom-scrollbar"
-        >
-          <div className="flex-1" />
-          {messages.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center text-center px-4">
-              <div className="mb-2 text-2xl">💬</div>
-              <p className="text-[12px] text-neutral-500">
-                No messages yet. Send a message or share a photo with your group!
-              </p>
-            </div>
-          ) : (
-            messages.map((m) => {
-              const isSelf = m.userId === user?.id;
-              const sender = !isSelf
-                ? room?.members?.find(mem => mem.id === m.userId) ||
-                (room?.leader?.id === m.userId ? room.leader : null)
-                : null;
+      {/* Messages */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-6 p-6 scroll-smooth custom-scrollbar">
+        {messages.map((m) => {
+          const isSelf = m.userId === user?.id;
+          const time = new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-              const displayName = m.userName || sender?.name || "Member";
-              const avatar = m.userAvatar || sender?.avatarUrl;
-              const time = new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-              return (
-                <div key={m.id} className={`flex mb-4 ${isSelf ? "justify-end" : "justify-start"}`}>
-                  <div className={`flex max-w-[85%] items-end gap-2 ${isSelf ? "flex-row-reverse" : "flex-row"}`}>
-                    <div
-                      className="h-7 w-7 flex-shrink-0 cursor-pointer overflow-hidden rounded-full border border-white/20"
-                      onClick={() => handleMessageClick(m)}
-                    >
-                      {avatar ? (
-                        <img
-                          src={avatar}
-                          alt=""
-                          className="h-full w-full object-cover"
-                          referrerPolicy="no-referrer"
-                          crossOrigin="anonymous"
-                          onError={(e) => {
-                            // Hide image on error to show initials
-                            (e.target as HTMLImageElement).style.display = 'none';
-                            (e.target as HTMLImageElement).parentElement?.classList.add('bg-white/10');
-                            const initial = document.createElement('div');
-                            initial.className = "flex h-full w-full items-center justify-center text-[10px]";
-                            initial.innerText = displayName.substring(0, 1).toUpperCase();
-                            (e.target as HTMLImageElement).parentElement?.appendChild(initial);
-                          }}
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-white/10 text-[10px]">
-                          {displayName.substring(0, 1).toUpperCase()}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex flex-col gap-1">
-                      {!isSelf && (
-                        <span className="ml-1 text-[10px] text-neutral-500">{displayName} • {time}</span>
-                      )}
-
-                      <div
-                        className={`group relative overflow-hidden rounded-2xl px-3 py-2 text-[12px] transition-all ${isSelf ? "bg-white text-black" : "bg-white/10 text-white"
-                          } ${m.isCheckpointNotification ? (m.isDeleted ? "border border-red-500/30 bg-red-500/5 opacity-60" : "border border-indigo-500/50 bg-indigo-500/10") : ""} cursor-pointer hover:ring-1 hover:ring-white/30`}
-                        onClick={() => {
-                          if (m.type === 'voice' && m.audioData) {
-                            const audio = new Audio(m.audioData);
-                            audio.play().catch(console.error);
-                          } else {
-                            handleMessageClick(m);
-                          }
-                        }}
-                      >
-                        {m.imageUrl && (
-                          <div className="mb-2 overflow-hidden rounded-lg border border-white/10 shadow-lg">
-                            <img src={m.imageUrl} alt="Shared" className="max-h-60 w-full object-cover" />
-                            <div className="flex gap-1 p-1 bg-black/40">
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleDownload(m.imageUrl!, `shared-${m.id}.jpg`); }}
-                                className="flex-1 rounded py-1 text-[9px] hover:bg-white/20"
-                              >
-                                Download
-                              </button>
-                              {isSelf && m.mediaId && (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleDeleteMessage(m); }}
-                                  className="rounded p-1 text-[9px] text-red-400 hover:bg-red-500/20"
-                                >
-                                  Delete
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        <p className={`whitespace-pre-wrap ${m.isDeleted ? "line-through text-neutral-500" : ""}`}>
-                          {m.type === 'voice' ? (
-                            <span className="flex items-center gap-2">
-                              <span>🔊</span>
-                              <span>Voice Message</span>
-                              <span className="text-[9px] opacity-60">(Auto-playing)</span>
-                            </span>
-                          ) : m.text}
-                        </p>
-                        {isSelf && <div className="mt-1 text-right text-[9px] opacity-40">{time}</div>}
-
-                        {m.isDeleted ? (
-                          <div className="mt-1 flex items-center gap-1 text-[9px] text-red-500 font-bold uppercase tracking-wider">
-                            <span>✕</span> Removed
-                          </div>
-                        ) : (
-                          (m.location || (!isSelf && memberPositions[m.userId])) && (
-                            <div className="mt-1 flex items-center gap-1 text-[9px] text-indigo-400 font-bold uppercase tracking-wider">
-                              <span className="animate-pulse">●</span> Click to locate
-                            </div>
-                          )
-                        )}
+          return (
+            <div key={m.id} className={`flex flex-col ${isSelf ? "items-end" : "items-start"}`}>
+              {!isSelf && <span className="mb-2 ml-2 text-[10px] font-bold text-neutral-500">{m.userName || "Member"}</span>}
+              <div className="group relative flex max-w-[85%] items-end gap-2">
+                <div
+                  className={`rounded-3xl px-4 py-3 text-sm shadow-xl transition-all ${isSelf ? "bg-white text-black rounded-br-lg" : "bg-white/10 text-white rounded-bl-lg border border-white/10"}`}
+                >
+                  {m.type === "voice" ? (
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-black/10">🔊</div>
+                      <div className="flex flex-col">
+                        <span className="font-black uppercase tracking-widest text-[10px]">Voice Note</span>
+                        <span className="text-[9px] opacity-60">Auto-played to room</span>
                       </div>
                     </div>
+                  ) : m.imageUrl ? (
+                    <div className="flex flex-col gap-2 min-w-[150px]">
+                      <img src={m.imageUrl} alt="" className="rounded-xl max-h-48 object-cover cursor-pointer" onClick={() => handleDownload(m.imageUrl!, "shared.jpg")} />
+                      <span className="text-[10px] opacity-40 italic">Click to download</span>
+                    </div>
+                  ) : (
+                    editingId === m.id ? (
+                      <form onSubmit={saveEdit} className="flex flex-col gap-2 min-w-[120px]">
+                        <input autoFocus className="bg-black/10 rounded px-2 py-1 outline-none font-bold" value={editInput} onChange={e => setEditInput(e.target.value)} />
+                        <div className="flex gap-2">
+                          <button type="submit" className="text-[9px] font-black uppercase text-indigo-500">Save</button>
+                          <button onClick={() => setEditingId(null)} className="text-[9px] font-black uppercase text-neutral-500">Cancel</button>
+                        </div>
+                      </form>
+                    ) : (
+                      <p className="leading-relaxed cursor-pointer" onClick={() => handleMessageClick(m)}>{m.text}</p>
+                    )
+                  )}
+                  <div className="mt-1 flex items-center justify-end gap-2 opacity-30 text-[9px] font-bold">
+                    <span>{time}</span>
                   </div>
                 </div>
-              );
-            })
-          )}
-        </div>
 
-        <div className="relative border-t border-white/5 bg-black/30 p-3">
-          <form className="flex items-center gap-2" onSubmit={handleSubmit}>
-            <button
-              type="button"
-              className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-white transition-all ${isRecording ? "bg-red-500 animate-pulse scale-110" : "bg-white/10 hover:bg-white/20"}`}
-              onMouseDown={startRecording}
-              onMouseUp={stopRecording}
-              onMouseLeave={stopRecording}
-              onTouchStart={startRecording}
-              onTouchEnd={stopRecording}
-              disabled={uploading}
-              title="Hold to record voice"
-            >
-              🎤
-            </button>
-            <button
-              type="button"
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 disabled:opacity-50"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              title="Share photo"
-            >
-              {uploading ? "..." : "📷"}
-            </button>
+                {/* Quick Actions (Hover) */}
+                {isSelf && !editingId && (
+                  <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {m.type === "text" && (
+                      <button onClick={() => startEdit(m)} className="rounded-full bg-white/5 p-1.5 text-neutral-500 hover:text-white transition-colors">✎</button>
+                    )}
+                    <button onClick={() => deleteMsg(m.id)} className="rounded-full bg-red-500/10 p-1.5 text-red-500/50 hover:text-red-500 transition-colors">✕</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Input */}
+      <div className="relative border-t border-white/5 bg-black/40 p-6">
+        {isRecording && (
+          <div className="absolute -top-14 left-6 right-6 flex items-center justify-between rounded-full bg-red-500 px-6 py-3 text-white shadow-2xl animate-bounce">
+            <div className="flex items-center gap-3">
+              <span className="flex h-2 w-2 rounded-full bg-white animate-pulse" />
+              <span className="text-[10px] font-black uppercase tracking-[0.2em]">Announcing Live...</span>
+            </div>
+            <span className="text-[10px] font-bold opacity-70">Release to broadcast</span>
+          </div>
+        )}
+
+        <form onSubmit={sendMessage} className="flex items-center gap-3">
+          <button
+            type="button"
+            onMouseDown={startRecording}
+            onMouseUp={stopRecording}
+            onMouseLeave={stopRecording}
+            onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
+            onTouchEnd={(e) => { e.preventDefault(); stopRecording(); }}
+            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl transition-all shadow-xl active:scale-150 ${isRecording ? "bg-red-500 scale-110" : "bg-white/5 border border-white/10 hover:bg-white/10"}`}
+          >
+            <span className="text-xl">🎤</span>
+          </button>
+
+          <button
+            type="button"
+            className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl bg-white/5 border border-white/10 text-white hover:bg-white/10 active:scale-90"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+          >
+            {uploading ? "..." : "📷"}
+          </button>
+          <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
+
+          <div className="relative flex-1">
             <input
-              type="file"
-              ref={fileInputRef}
-              className="hidden"
-              accept="image/*"
-              onChange={handleFileUpload}
-            />
-            <input
-              className="flex-1 rounded-full bg-white/10 px-4 py-2 text-[12px] text-white placeholder:text-neutral-500 outline-none focus:bg-white/15 focus:ring-1 focus:ring-white/20 transition-all"
-              placeholder={isRecording ? "Recording voice..." : "Message..."}
+              placeholder={isRecording ? "Listening..." : "Message group..."}
+              className="w-full rounded-2xl bg-white/5 border border-white/10 py-4 pl-5 pr-12 text-sm text-white outline-none focus:bg-white/10 focus:border-white/20 transition-all"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={e => setInput(e.target.value)}
               disabled={isRecording}
             />
-            <button
-              type="submit"
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-white text-black hover:bg-neutral-200 disabled:opacity-50"
-              disabled={!input.trim() || isRecording}
-            >
+            <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-xl bg-white text-black shadow-lg transition-all hover:bg-neutral-200 active:scale-90">
               →
             </button>
-          </form>
-          {isRecording && (
-            <div className="absolute -top-10 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full bg-red-500 px-3 py-1 text-white text-[10px] font-bold shadow-lg animate-bounce">
-              <span>●</span> Recording Voice... Release to send
-            </div>
-          )}
-        </div>
+          </div>
+        </form>
       </div>
 
       <style>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(255, 255, 255, 0.1);
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(255, 255, 255, 0.2);
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 20px; }
       `}</style>
     </div>
   );
 };
-

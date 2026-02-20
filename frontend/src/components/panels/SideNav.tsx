@@ -231,92 +231,96 @@ export const SideNav = () => {
 
     return (
         <>
+            {/* Desktop SideNav - Vertical Pill Style from Image */}
             <div
-                className={`pointer-events-none absolute left-0 top-0 z-[60] flex h-full flex-col transition-all duration-500 ease-in-out md:left-4 md:top-1/2 md:h-auto md:-translate-y-1/2 md:gap-3
-                    ${isExpanded ? "w-64 md:w-56" : "w-0 md:w-16"}
-                `}
+                className={`hidden md:flex pointer-events-none absolute left-6 top-1/2 z-50 -translate-y-1/2 flex-col items-center`}
                 onMouseEnter={() => setIsExpanded(true)}
                 onMouseLeave={() => setIsExpanded(false)}
             >
-                {/* Mobile Toggle Button (Visible only on mobile when not expanded) */}
-                {!isExpanded && (
-                    <button
-                        onClick={() => setIsExpanded(true)}
-                        className="pointer-events-auto absolute left-4 top-24 flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-black/60 shadow-2xl backdrop-blur-3xl md:hidden"
-                    >
-                        <span className="text-lg">☰</span>
-                    </button>
-                )}
-
-                <div className={`pointer-events-auto flex h-full flex-col gap-2 overflow-y-auto overflow-x-hidden bg-black/90 p-4 shadow-2xl backdrop-blur-3xl transition-all duration-500 no-scrollbar md:h-auto md:rounded-3xl md:border md:border-white/10 md:bg-black/60
-                    ${isExpanded ? "translate-x-0 opacity-100" : "-translate-x-full md:translate-x-0 md:opacity-100"}
+                <div className={`pointer-events-auto flex flex-col items-center gap-2 overflow-hidden rounded-[44px] border border-white/5 bg-black/85 py-3 px-2 shadow-[0_25px_60px_rgba(0,0,0,0.5)] backdrop-blur-3xl transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+                    ${isExpanded ? "w-52" : "w-[64px]"}
                 `}>
-                    {/* Header for expanded view */}
-                    {isExpanded && (
-                        <div className="mb-4 flex items-center justify-between px-2 md:hidden">
-                            <span className="text-xs font-black uppercase tracking-widest text-white/40">Menu</span>
-                            <button onClick={() => setIsExpanded(false)} className="text-white/60 hover:text-white">✕</button>
-                        </div>
-                    )}
-
                     {navItems.map((item) => (
                         <button
                             key={item.id}
-                            onClick={() => {
-                                item.onClick();
-                                if (window.innerWidth < 768) setIsExpanded(false);
-                            }}
+                            onClick={item.onClick}
                             disabled={item.disabled}
-                            className={`group relative flex h-12 w-full shrink-0 items-center gap-4 rounded-xl border transition-all duration-300 hover:scale-[1.02] active:scale-95 disabled:opacity-50 
-                                ${item.active
-                                    ? "bg-indigo-500/20 border-indigo-500/40 shadow-[0_0_20px_rgba(99,102,241,0.2)]"
-                                    : item.accent
-                                        ? "bg-red-500/20 border-red-500/50 shadow-[0_0_20px_rgba(239,68,68,0.2)] hover:bg-red-500/30"
-                                        : "bg-white/5 border-white/10 hover:bg-white/10"
-                                }
-                                ${isExpanded ? "px-4" : "justify-center px-0"}
+                            className={`group relative flex h-[50px] w-full shrink-0 items-center transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-90 disabled:opacity-50 rounded-[28px]
+                                ${item.active ? "bg-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]" : "hover:bg-white/5"}
+                                ${isExpanded ? "px-5 gap-4" : "justify-center"}
                             `}
-                            title={isExpanded ? "" : item.label}
                         >
-                            <div className="relative flex min-w-[24px] items-center justify-center">
-                                <span className={`text-xl transition-all duration-500 ${item.accent ? "animate-pulse" : (item.active ? "scale-110" : "opacity-70 group-hover:opacity-100")}`}>
-                                    {item.icon}
-                                </span>
+                            <span className={`text-xl leading-none transition-all duration-300
+                                ${item.accent
+                                    ? "drop-shadow-[0_0_10px_rgba(239,68,68,0.9)]"
+                                    : item.active
+                                        ? "scale-110 opacity-100"
+                                        : "opacity-55 group-hover:opacity-100 group-hover:scale-110"
+                                }`}>
+                                {item.icon}
+                            </span>
 
-                                {/* Unread Badge for Chat in collapsed mode */}
-                                {!isExpanded && item.id === "chat" && unreadCount > 0 && (
-                                    <div className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[8px] font-black text-white shadow-lg animate-pulse border border-black">
-                                        {unreadCount > 9 ? "9+" : unreadCount}
-                                    </div>
-                                )}
-                            </div>
+                            <span className={`whitespace-nowrap text-[10px] font-black uppercase tracking-[0.18em] text-white/70 transition-all duration-500
+                                ${isExpanded ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-2 absolute pointer-events-none"}
+                            `}>
+                                {item.label}
+                            </span>
 
-                            {/* Label - visible when expanded */}
-                            <div className={`overflow-hidden transition-all duration-500 ${isExpanded ? "w-auto opacity-100" : "w-0 opacity-0"}`}>
-                                <span className={`whitespace-nowrap text-sm font-bold tracking-wide ${item.active ? "text-white" : "text-white/80"}`}>
-                                    {item.label}
-                                </span>
-                                {item.id === "chat" && unreadCount > 0 && isExpanded && (
-                                    <span className="ml-2 rounded-full bg-red-500 px-1.5 py-0.5 text-[8px] font-black text-white">
-                                        {unreadCount}
-                                    </span>
-                                )}
-                            </div>
-
-                            {/* Unread Badge for Chat (Alternative positioning if needed) */}
-                            {item.id === "chat" && unreadCount > 0 && isExpanded && (
-                                <div className="ml-auto rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-black text-white shadow-lg animate-pulse">
-                                    {unreadCount > 9 ? "9+" : unreadCount}
+                            {item.id === "chat" && unreadCount > 0 && (
+                                <div className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[8px] font-black text-white shadow-lg animate-pulse border border-black">
+                                    {unreadCount}
                                 </div>
                             )}
 
-                            {/* Selection Marker */}
-                            {item.active && (
-                                <div className="absolute -left-1 h-6 w-1 rounded-full bg-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.8)] animate-pulse" />
+                            {/* Tooltip shown only when collapsed */}
+                            {!isExpanded && (
+                                <div className="pointer-events-none absolute left-[72px] z-50 scale-0 rounded-xl border border-white/10 bg-black/95 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-white shadow-2xl transition-all duration-200 group-hover:scale-100">
+                                    {item.label}
+                                    <div className="absolute left-[-4px] top-1/2 -translate-y-1/2 h-2 w-2 rotate-45 border-l border-b border-white/10 bg-black/95" />
+                                </div>
                             )}
                         </button>
                     ))}
                 </div>
+            </div>
+
+            {/* Mobile UI Controls */}
+            <div className="md:hidden pointer-events-none fixed left-4 top-24 z-50 flex flex-col gap-2">
+                {/* Menu Toggle */}
+                <button
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-[18px] border border-white/10 bg-black/70 shadow-2xl backdrop-blur-3xl transition-all active:scale-90"
+                >
+                    <span className="text-lg text-white">{isExpanded ? "✕" : "☰"}</span>
+                </button>
+
+                {/* Mobile Chat Button - Below Menu */}
+                <button
+                    onClick={toggleChat}
+                    className={`pointer-events-auto relative flex h-12 w-12 items-center justify-center rounded-[18px] border bg-black/70 shadow-2xl backdrop-blur-3xl transition-all active:scale-90 ${isChatOpen ? "bg-indigo-500/20 border-indigo-500/40" : "border-white/10"}`}
+                >
+                    <span className="text-xl">💬</span>
+                    {unreadCount > 0 && (
+                        <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-black text-white shadow-lg animate-pulse border-2 border-black">
+                            {unreadCount}
+                        </div>
+                    )}
+                </button>
+
+                {/* Expanded Mobile Menu */}
+                {isExpanded && (
+                    <div className="pointer-events-auto flex flex-col gap-2 rounded-3xl border border-white/10 bg-black/90 p-2 shadow-2xl backdrop-blur-3xl">
+                        {navItems.filter(i => i.id !== 'chat').map((item) => (
+                            <button
+                                key={item.id}
+                                onClick={() => { item.onClick(); setIsExpanded(false); }}
+                                className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/5 transition-all active:scale-90"
+                            >
+                                <span className="text-xl">{item.icon}</span>
+                            </button>
+                        ))}
+                    </div>
+                )}
             </div>
 
             <input
