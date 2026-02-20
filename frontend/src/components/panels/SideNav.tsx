@@ -106,6 +106,13 @@ export const SideNav = () => {
 
     const navItems: NavItem[] = [
         {
+            id: "chat",
+            label: "Chat",
+            icon: "💬",
+            active: isChatOpen,
+            onClick: toggleChat,
+        },
+        {
             id: "sos",
             label: "SOS",
             icon: "🚨",
