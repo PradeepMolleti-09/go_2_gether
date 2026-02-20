@@ -186,6 +186,16 @@ export const initSocket = (server: http.Server) => {
       }
     });
 
+    // Leader can kick a member
+    socket.on("room:kick", (payload: { roomId: string; targetUserId: string }) => {
+      const { roomId, targetUserId } = payload;
+      if (roomId && targetUserId) {
+        // Broadcast to the whole room that a member was removed
+        io.to(roomId).emit("room:member-removed", { userId: targetUserId, roomId });
+        logger.info(`User ${userId} kicked ${targetUserId} from room ${roomId}`);
+      }
+    });
+
     socket.on("disconnect", () => {
       const currentRoom = (socket.data as any).currentRoom as string | undefined;
       logger.info(`Socket disconnected ${socket.id} user=${userId}`);

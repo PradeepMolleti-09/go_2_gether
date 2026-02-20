@@ -1,24 +1,31 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Users, ArrowRight, Copy, LogOut, Loader2 } from "lucide-react";
+import { Plus, Users, ArrowRight, Copy, LogOut, Loader2, User } from "lucide-react";
 import { useRoom } from "../../context/RoomContext";
+import { useAuth } from "../../context/AuthContext";
 import { createRoomApi, joinRoomApi } from "../../services/roomService";
 import { useNotification } from "../../context/NotificationContext";
 
+type Step = "name" | "choice" | "join";
+
 export const RoomManager = () => {
-    const { room, setRoom, clearRoom } = useRoom();
+    const { room, clearRoom } = useRoom();
+    const { user } = useAuth();
     const { showNotification } = useNotification();
+    const [step, setStep] = useState<Step>("name");
+    const [displayName, setDisplayName] = useState(user?.name || "");
     const [joinCode, setJoinCode] = useState("");
     const [isLoading, setIsLoading] = useState(false);
-    const [mode, setMode] = useState<"choice" | "join">("choice");
+
+    const { setRoom } = useRoom();
 
     const handleCreateRoom = async () => {
         setIsLoading(true);
         try {
             const newRoom = await createRoomApi();
             setRoom(newRoom, "leader");
-            showNotification("Secure room created", "success");
-        } catch (error) {
+            showNotification(`Welcome, ${displayName}! Secure room created.`, "success");
+        } catch {
             showNotification("Failed to initialize room", "error");
         } finally {
             setIsLoading(false);
@@ -31,37 +38,37 @@ export const RoomManager = () => {
         try {
             const joinedRoom = await joinRoomApi(joinCode.toUpperCase());
             setRoom(joinedRoom, "member");
-            showNotification("Successfully joined voyage", "success");
-        } catch (error) {
-            showNotification("Invalid protocol code", "error");
+            showNotification(`Welcome, ${displayName}! Joined voyage.`, "success");
+        } catch {
+            showNotification("Invalid access code", "error");
         } finally {
             setIsLoading(false);
         }
     };
 
+    // ── Active room card ──────────────────────────────────────────────────────
     if (room) {
         return (
             <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="pointer-events-auto w-full max-w-[280px] rounded-[32px] border border-white/10 bg-black/60 p-6 shadow-2xl backdrop-blur-3xl group"
+                className="pointer-events-auto w-full max-w-[300px] rounded-[32px] border border-white/10 bg-black/60 p-6 shadow-2xl backdrop-blur-3xl"
             >
-                <div className="mb-6 flex items-center justify-between">
-                    <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30">Protocol Code</p>
-                        <h3 className="text-3xl font-black tracking-tighter text-white tabular-nums">{room.code}</h3>
-                    </div>
+                <div className="mb-6">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30">Protocol Code</p>
+                    <h3 className="text-4xl font-black tracking-tighter text-white tabular-nums">{room.code}</h3>
+                    <p className="mt-1 text-[10px] text-white/40">Share this code with your group</p>
                 </div>
 
                 <div className="flex flex-col gap-3">
                     <button
                         onClick={() => {
                             navigator.clipboard.writeText(room.code);
-                            showNotification("Code synced to clipboard", "info");
+                            showNotification("Code copied to clipboard", "info");
                         }}
-                        className="flex items-center justify-center gap-3 rounded-2xl bg-white/5 py-4 text-[11px] font-black uppercase tracking-widest text-neutral-300 transition-all hover:bg-white/10 active:scale-95 group/btn"
+                        className="flex items-center justify-center gap-3 rounded-2xl bg-white/5 py-4 text-[11px] font-black uppercase tracking-widest text-neutral-300 transition-all hover:bg-white/10 active:scale-95"
                     >
-                        <Copy size={14} className="transition-transform group-hover/btn:scale-110" />
+                        <Copy size={14} />
                         Copy Access Key
                     </button>
                     <button
@@ -69,29 +76,72 @@ export const RoomManager = () => {
                         className="flex items-center justify-center gap-3 rounded-2xl bg-red-500/10 py-4 text-[11px] font-black uppercase tracking-widest text-red-500 transition-all hover:bg-red-500/20 active:scale-95"
                     >
                         <LogOut size={14} />
-                        Terminate Session
+                        Leave Room
                     </button>
                 </div>
             </motion.div>
         );
     }
 
+    // ── Pre-join flow ─────────────────────────────────────────────────────────
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="pointer-events-auto w-[90vw] sm:w-auto sm:min-w-[380px] rounded-[32px] sm:rounded-[48px] border border-white/10 bg-black/40 p-6 sm:p-12 shadow-2xl backdrop-blur-3xl"
+            className="pointer-events-auto w-[92vw] sm:w-auto sm:min-w-[400px] rounded-[32px] sm:rounded-[48px] border border-white/10 bg-black/40 p-7 sm:p-12 shadow-2xl backdrop-blur-3xl"
         >
             <AnimatePresence mode="wait">
-                {mode === "choice" ? (
+
+                {/* ── Step 1: Enter Name ── */}
+                {step === "name" && (
+                    <motion.div
+                        key="name"
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20 }}
+                        className="space-y-8"
+                    >
+                        <div className="text-center">
+                            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/5 border border-white/10">
+                                <User size={28} className="text-white" />
+                            </div>
+                            <h2 className="mb-2 text-3xl font-black tracking-tighter text-white">Your Name</h2>
+                            <p className="text-sm font-medium text-neutral-500 uppercase tracking-widest">How should others see you?</p>
+                        </div>
+
+                        <div className="space-y-4">
+                            <input
+                                autoFocus
+                                type="text"
+                                placeholder="Enter your name"
+                                value={displayName}
+                                onChange={(e) => setDisplayName(e.target.value)}
+                                onKeyDown={(e) => e.key === "Enter" && displayName.trim() && setStep("choice")}
+                                className="w-full rounded-3xl border border-white/10 bg-white/5 px-8 py-6 text-center text-xl font-black text-white outline-none focus:border-indigo-500/50 focus:ring-[12px] focus:ring-indigo-500/10 transition-all"
+                            />
+                            <button
+                                onClick={() => displayName.trim() && setStep("choice")}
+                                disabled={!displayName.trim()}
+                                className="group flex w-full items-center justify-center gap-4 rounded-3xl bg-indigo-600 py-5 text-sm font-black uppercase tracking-[0.3em] text-white transition-all hover:bg-indigo-500 hover:shadow-[0_0_40px_rgba(79,70,229,0.4)] disabled:opacity-20 disabled:grayscale"
+                            >
+                                Continue
+                                <ArrowRight size={18} className="transition-transform group-hover:translate-x-2" />
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+
+                {/* ── Step 2: Create or Join ── */}
+                {step === "choice" && (
                     <motion.div
                         key="choice"
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: 20 }}
-                        className="space-y-10"
+                        className="space-y-8"
                     >
                         <div className="text-center">
+                            <p className="mb-1 text-[10px] font-black uppercase tracking-[0.3em] text-indigo-400">Hey, {displayName}!</p>
                             <h2 className="mb-2 text-3xl font-black tracking-tighter text-white">Start Expedition</h2>
                             <p className="text-sm font-medium text-neutral-500 uppercase tracking-widest">Select your entry protocol</p>
                         </div>
@@ -100,7 +150,7 @@ export const RoomManager = () => {
                             <button
                                 onClick={handleCreateRoom}
                                 disabled={isLoading}
-                                className="group relative flex flex-col items-center gap-4 overflow-hidden rounded-[32px] bg-white p-8 transition-all hover:bg-neutral-100 disabled:opacity-50"
+                                className="group relative flex flex-col items-center gap-4 overflow-hidden rounded-[32px] bg-white p-8 transition-all hover:bg-neutral-100 active:scale-98 disabled:opacity-50"
                             >
                                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-black text-white transition-transform group-hover:scale-110 group-hover:rotate-12 duration-500">
                                     {isLoading ? <Loader2 className="animate-spin" /> : <Plus size={28} />}
@@ -112,7 +162,7 @@ export const RoomManager = () => {
                             </button>
 
                             <button
-                                onClick={() => setMode("join")}
+                                onClick={() => setStep("join")}
                                 className="group relative flex flex-col items-center gap-4 overflow-hidden rounded-[32px] border border-white/10 bg-white/5 p-8 transition-all hover:bg-white/10 active:scale-98"
                             >
                                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white transition-transform group-hover:scale-110 duration-500">
@@ -123,9 +173,19 @@ export const RoomManager = () => {
                                     <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500">Enter an existing room code</span>
                                 </div>
                             </button>
+
+                            <button
+                                onClick={() => setStep("name")}
+                                className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30 hover:text-white/60 transition-colors mt-2"
+                            >
+                                ← Change Name
+                            </button>
                         </div>
                     </motion.div>
-                ) : (
+                )}
+
+                {/* ── Step 3: Enter Code ── */}
+                {step === "join" && (
                     <motion.div
                         key="join"
                         initial={{ opacity: 0, x: 20 }}
@@ -135,7 +195,7 @@ export const RoomManager = () => {
                     >
                         <div className="text-center">
                             <button
-                                onClick={() => setMode("choice")}
+                                onClick={() => setStep("choice")}
                                 className="mb-6 text-[10px] font-black uppercase tracking-[0.3em] text-white/30 hover:text-white/60 transition-colors"
                             >
                                 ← Go Back
@@ -151,7 +211,8 @@ export const RoomManager = () => {
                                 value={joinCode}
                                 maxLength={6}
                                 onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                                className="w-full rounded-3xl border border-white/10 bg-white/5 px-8 py-6 text-center text-2xl font-black tracking-[0.5em] text-white outline-none ring-indigo-500/0 transition-all focus:border-indigo-500/50 focus:ring-[12px] focus:ring-indigo-500/10"
+                                onKeyDown={(e) => e.key === "Enter" && joinCode.length >= 4 && handleJoinRoom()}
+                                className="w-full rounded-3xl border border-white/10 bg-white/5 px-8 py-6 text-center text-2xl font-black tracking-[0.5em] text-white outline-none focus:border-indigo-500/50 focus:ring-[12px] focus:ring-indigo-500/10 transition-all"
                             />
                             <button
                                 onClick={handleJoinRoom}
@@ -170,6 +231,7 @@ export const RoomManager = () => {
                         </div>
                     </motion.div>
                 )}
+
             </AnimatePresence>
         </motion.div>
     );

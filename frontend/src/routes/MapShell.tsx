@@ -15,7 +15,6 @@ import { useRoom } from "../context/RoomContext";
 import { useUI } from "../context/UIContext";
 import { TripReportModal } from "../components/TripReportModal";
 import { useMapContext } from "../context/MapContext";
-
 import { WebGLShader } from "../components/ui/web-gl-shader";
 import { motion, AnimatePresence } from "framer-motion";
 import { RoomManager } from "../components/panels/RoomManager";
@@ -63,12 +62,21 @@ const MapShellInner = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  const isLeader = room?.leader?.id === user?.id;
+  // Hide search bar if trip is ongoing
+  const showSearchBar = isLeader && !room?.activeTrip;
+
   return (
     <div className="relative h-[100dvh] w-full overflow-hidden bg-black">
       <MapContainer />
       <AlertsToast />
+
+      {/* Profile avatar — top RIGHT, pushed to right so mobile nav on left doesn't conflict */}
       <ProfileAvatar />
-      {room?.leader?.id === user?.id && <TopSearchBar />}
+
+      {/* Search bar hidden once trip is started */}
+      {showSearchBar && <TopSearchBar />}
+
       <SideNav />
       <RightChatPanel />
 
