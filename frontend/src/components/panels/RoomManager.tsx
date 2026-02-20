@@ -218,6 +218,19 @@ export const RoomManager = () => {
                             </button>
 
                             <button
+                                onClick={() => { setStep("join"); startScanner(); }}
+                                className="group relative flex flex-col items-center gap-4 overflow-hidden rounded-[32px] border border-indigo-500/20 bg-indigo-500/5 p-8 transition-all hover:bg-indigo-500/10 active:scale-98"
+                            >
+                                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-indigo-500/30 bg-indigo-500/10 text-indigo-400 transition-transform group-hover:scale-110 group-hover:rotate-12 duration-500">
+                                    <Camera size={28} />
+                                </div>
+                                <div className="text-center">
+                                    <span className="block text-lg font-black text-indigo-400">Scan QR Code</span>
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-400/50">Point camera at friend's screen</span>
+                                </div>
+                            </button>
+
+                            <button
                                 onClick={() => setStep("name")}
                                 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30 hover:text-white/60 transition-colors mt-2"
                             >
@@ -272,12 +285,26 @@ export const RoomManager = () => {
                                     />
                                     <button
                                         onClick={startScanner}
-                                        className="absolute right-4 top-1/2 -translate-y-1/2 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5 text-indigo-400 hover:bg-white/10 hover:text-indigo-300 transition-all"
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/20 text-indigo-400 hover:bg-indigo-500/30 hover:text-indigo-300 transition-all shadow-[0_0_20px_rgba(79,70,229,0.2)]"
                                         title="Scan QR"
                                     >
                                         <Camera size={24} />
                                     </button>
                                 </div>
+
+                                <div className="flex items-center gap-4 py-2">
+                                    <div className="h-[1px] flex-1 bg-white/5" />
+                                    <span className="text-[9px] font-black text-white/20 uppercase tracking-[0.2em]">OR</span>
+                                    <div className="h-[1px] flex-1 bg-white/5" />
+                                </div>
+
+                                <button
+                                    onClick={startScanner}
+                                    className="flex w-full items-center justify-center gap-3 rounded-2xl bg-white/5 py-4 text-[11px] font-black uppercase tracking-widest text-neutral-300 transition-all hover:bg-white/10 active:scale-95 border border-white/5"
+                                >
+                                    <Camera size={16} className="text-indigo-400" />
+                                    Quick Scan
+                                </button>
 
                                 <button
                                     onClick={() => handleJoinRoom()}
