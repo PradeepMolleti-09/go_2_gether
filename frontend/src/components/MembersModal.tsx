@@ -2,6 +2,8 @@ import { useRoom } from "../context/RoomContext";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
 import { useNotification } from "../context/NotificationContext";
+import { ConfirmationModal } from "./ui/ConfirmationModal";
+import { useState } from "react";
 
 interface Props {
     open: boolean;
@@ -14,17 +16,19 @@ export const MembersModal = ({ open, onClose }: Props) => {
     const { socket } = useSocket();
     const { showNotification } = useNotification();
 
+    const [confirmKick, setConfirmKick] = useState<{ id: string; name: string } | null>(null);
+
     if (!open) return null;
 
     const members = room?.members ?? [];
     const leader = room?.leader;
     const isLeader = role === "leader" || room?.leader?.id === user?.id;
 
-    const handleKick = (memberId: string, memberName: string) => {
-        if (!socket || !room?._id) return;
-        if (!window.confirm(`Remove ${memberName} from the room?`)) return;
-        socket.emit("room:kick", { roomId: room._id, targetUserId: memberId });
-        showNotification(`${memberName} removed from room`, "info");
+    const handleKick = () => {
+        if (!socket || !room?._id || !confirmKick) return;
+        socket.emit("room:kick", { roomId: room._id, targetUserId: confirmKick.id });
+        showNotification(`${confirmKick.name} removed from room`, "info");
+        setConfirmKick(null);
     };
 
     return (
@@ -88,7 +92,7 @@ export const MembersModal = ({ open, onClose }: Props) => {
                             {/* Leader kick button */}
                             {isLeader && m.id !== user?.id && (
                                 <button
-                                    onClick={() => handleKick(m.id, m.name)}
+                                    onClick={() => setConfirmKick({ id: m.id, name: m.name })}
                                     className="flex h-8 px-3 items-center justify-center rounded-xl bg-red-500/10 text-[9px] font-black uppercase tracking-wider text-red-500 transition-all hover:bg-red-500/20 active:scale-90"
                                 >
                                     Remove
@@ -104,6 +108,17 @@ export const MembersModal = ({ open, onClose }: Props) => {
                     )}
                 </div>
             </div>
+
+            <ConfirmationModal
+                isOpen={!!confirmKick}
+                title="Remove Member?"
+                message={`Are you sure you want to remove ${confirmKick?.name} from this room?`}
+                confirmLabel="Remove"
+                cancelLabel="Cancel"
+                isDestructive={true}
+                onConfirm={handleKick}
+                onCancel={() => setConfirmKick(null)}
+            />
         </div>
     );
 };

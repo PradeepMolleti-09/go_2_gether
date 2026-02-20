@@ -8,7 +8,7 @@ import { checkpointService } from "../services/checkpointService";
 import { ConfirmationModal } from "./ui/ConfirmationModal";
 
 export const CheckpointsList = () => {
-    const { checkpoints, setCheckpoints } = useMapContext();
+    const { checkpoints, setCheckpoints, setFocusLocation } = useMapContext();
     const { room } = useRoom();
     const { user } = useAuth();
     const { showNotification } = useNotification();
@@ -81,7 +81,11 @@ export const CheckpointsList = () => {
                     {checkpoints.map((checkpoint) => (
                         <div
                             key={checkpoint._id}
-                            className="bg-white/5 border border-white/5 rounded-2xl p-3 hover:bg-white/10 transition-all group"
+                            onClick={() => {
+                                setFocusLocation({ lat: checkpoint.location.lat, lng: checkpoint.location.lng });
+                                showNotification(`Focusing on: ${checkpoint.title}`, "info");
+                            }}
+                            className="bg-white/5 border border-white/5 rounded-2xl p-3 hover:bg-white/10 transition-all group cursor-pointer active:scale-[0.98]"
                         >
                             <div className="flex items-start justify-between gap-3">
                                 <div className="flex-1 min-w-0">
@@ -96,7 +100,8 @@ export const CheckpointsList = () => {
                                 </div>
                                 {isLeader && (
                                     <button
-                                        onClick={() => {
+                                        onClick={(e) => {
+                                            e.stopPropagation();
                                             console.log("🔵 Remove button clicked for checkpoint:", checkpoint._id, checkpoint.title);
                                             setConfirmDelete({ id: checkpoint._id, title: checkpoint.title });
                                         }}

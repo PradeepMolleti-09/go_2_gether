@@ -58,9 +58,8 @@ export const MapShell = () => {
 const MapShellInner = () => {
   const { tripStats, setTripStats } = useMapContext();
   const { isCheckpointsOpen } = useUI();
-  const { room } = useRoom();
+  const { room, clearRoom } = useRoom();
   const { user } = useAuth();
-  const navigate = useNavigate();
 
   const isLeader = room?.leader?.id === user?.id;
   // Hide search bar if trip is ongoing
@@ -115,7 +114,7 @@ const MapShellInner = () => {
             distanceTraveled: 0,
             checkpointsReached: 0,
           });
-          navigate("/", { replace: true });
+          clearRoom();
         }}
       />
     </div>

@@ -10,6 +10,7 @@ import { GalleryModal } from "../media/GalleryModal";
 import { RoomInfoModal } from "../RoomInfoModal";
 import { uploadPhoto } from "../../services/mediaService";
 import { startTripApi, endTripApi } from "../../services/roomService";
+import { ConfirmationModal } from "../ui/ConfirmationModal";
 
 interface NavItem {
     id: string;
@@ -118,12 +119,6 @@ export const SideNav = () => {
 
     const navItems: NavItem[] = [
         {
-            id: "members",
-            label: `Members (${room?.members?.length ?? 0})`,
-            icon: "👥",
-            onClick: () => setMembersOpen(true),
-        },
-        {
             id: "chat",
             label: "Chat",
             icon: "💬",
@@ -136,6 +131,12 @@ export const SideNav = () => {
             icon: "🚩",
             active: isCheckpointsOpen,
             onClick: () => setIsCheckpointsOpen(!isCheckpointsOpen),
+        },
+        {
+            id: "members",
+            label: `Members (${room?.members?.length ?? 0})`,
+            icon: "👥",
+            onClick: () => setMembersOpen(true),
         },
         {
             id: "gallery",
@@ -185,14 +186,16 @@ export const SideNav = () => {
             label: "Leave Room",
             icon: "🚪",
             accent: false,
-            onClick: () => {
-                if (window.confirm("Leave this room?")) {
-                    clearRoom();
-                    showNotification("You left the room", "info");
-                }
-            },
+            onClick: () => setLeaveConfirmOpen(true),
         },
     ];
+
+    const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+    const handleLeaveRoom = () => {
+        clearRoom();
+        showNotification("You left the room", "info");
+        setLeaveConfirmOpen(false);
+    };
 
     if (isLeader) {
         navItems.splice(1, 0, {
@@ -435,6 +438,17 @@ export const SideNav = () => {
                 onClose={() => setGalleryOpen(false)}
             />
             <RoomInfoModal open={tripInfoOpen} onClose={() => setTripInfoOpen(false)} />
+
+            <ConfirmationModal
+                isOpen={leaveConfirmOpen}
+                title="Leave Expedition?"
+                message="Your real-time position will no longer be shared with the group. Are you sure?"
+                confirmLabel="Leave Now"
+                cancelLabel="Stay Sync'd"
+                isDestructive={true}
+                onConfirm={handleLeaveRoom}
+                onCancel={() => setLeaveConfirmOpen(false)}
+            />
         </>
     );
 };
