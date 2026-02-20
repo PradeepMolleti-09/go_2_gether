@@ -140,6 +140,21 @@ const createFlagIcon = (): google.maps.Icon => {
   };
 };
 
+const createDestinationIcon = (): google.maps.Icon => {
+  const size = 50;
+  const svgString = `
+    <svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13 15.87 2 12 2Z" fill="#ef4444" stroke="#ffffff" stroke-width="1.5"/>
+      <circle cx="12" cy="9" r="3" fill="white"/>
+    </svg>
+  `.trim();
+  return {
+    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svgString)}`,
+    scaledSize: new google.maps.Size(50, 50),
+    anchor: new google.maps.Point(25, 50),
+  };
+};
+
 const createAvatarSVG = (initials: string, borderColor: string): google.maps.Icon => {
   const size = 60;
   const height = 70;
@@ -515,7 +530,7 @@ export const MapContainer = () => {
         {destination && (
           <Marker
             position={{ lat: destination.lat, lng: destination.lng }}
-            icon={{ path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW, fillColor: "#22c55e", fillOpacity: 1, strokeColor: "#000000", strokeWeight: 2, scale: 6 }}
+            icon={createDestinationIcon()}
           />
         )}
         {checkpoints.map(cp => (
@@ -531,7 +546,7 @@ export const MapContainer = () => {
           <Polyline
             key={`route-${destination.lat}-${destination.lng}`}
             path={routePath}
-            options={{ strokeColor: "#22c55e", strokeOpacity: 0.9, strokeWeight: 4 }}
+            options={{ strokeColor: "#ef4444", strokeOpacity: 0.9, strokeWeight: 4 }}
           />
         )}
       </GoogleMap>
