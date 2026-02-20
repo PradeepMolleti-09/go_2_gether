@@ -210,7 +210,7 @@ export const MapContainer = () => {
   const [map, setMap] = useState<google.maps.Map | null>(null);
   const { theme } = useUI();
   const { socket } = useSocket();
-  const { room, addMember, clearRoom } = useRoom();
+  const { room, addMember, removeMember, clearRoom } = useRoom();
   const { user } = useAuth();
   const { showNotification } = useNotification();
   const {
@@ -404,7 +404,10 @@ export const MapContainer = () => {
         setCheckpoints((prev: any[]) => prev.filter(c => String(c._id) !== String(p.checkpointId)));
       }
     };
-    const userLeftHandler = (p: any) => setPositions(prev => { const next = { ...prev }; delete next[p.userId]; return next; });
+    const userLeftHandler = (p: any) => {
+      if (removeMember) removeMember(p.userId);
+      setPositions(prev => { const next = { ...prev }; delete next[p.userId]; return next; });
+    };
     const routeHandler = (p: any) => {
       if (room?._id && p.roomId === room._id) {
         setRoutePath(p.routePath || null);

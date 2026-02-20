@@ -21,6 +21,7 @@ interface ChatMessage {
   location?: { lat: number; lng: number };
   createdAt: number;
   isDeleted?: boolean;
+  seenBy?: string[]; // IDs of users who have seen this message
 }
 
 interface ContextMenu {
@@ -58,6 +59,7 @@ export const RightChatPanel = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastPlayedId = useRef<string | null>(null);
   const lastCountedId = useRef<string | null>(null);
+  const lastSeenEmittedId = useRef<string | null>(null);
 
   // Voice
   const [isRecording, setIsRecording] = useState(false);
@@ -134,17 +136,35 @@ export const RightChatPanel = () => {
       });
     };
 
+    const onSeen = (payload: { msgId: string; userId: string }) => {
+      setMessages(prev => {
+        const n = prev.map(m => {
+          if (m.id === payload.msgId) {
+            const seen = m.seenBy || [];
+            if (!seen.includes(payload.userId)) {
+              return { ...m, seenBy: [...seen, payload.userId] };
+            }
+          }
+          return m;
+        });
+        persist(n, rid);
+        return n;
+      });
+    };
+
     socket.on("chat:message", onMessage);
     socket.on("user-joined", onUserJoined);
     socket.on("user-left", onUserLeft);
     socket.on("chat:deleted", onDeleted);
     socket.on("chat:edited", onEdited);
+    socket.on("chat:seen", onSeen);
     return () => {
       socket.off("chat:message", onMessage);
       socket.off("user-joined", onUserJoined);
       socket.off("user-left", onUserLeft);
       socket.off("chat:deleted", onDeleted);
       socket.off("chat:edited", onEdited);
+      socket.off("chat:seen", onSeen);
     };
   }, [socket, room?._id, room?.members, user?.id, showNotification]);
 
@@ -162,7 +182,16 @@ export const RightChatPanel = () => {
     }
   }, [messages, isChatOpen, user?.id, setUnreadCount]);
 
-  useEffect(() => { if (isChatOpen) setUnreadCount(0); }, [isChatOpen, setUnreadCount]);
+  useEffect(() => {
+    if (isChatOpen && messages.length > 0) {
+      setUnreadCount(0);
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg.userId !== user?.id && lastMsg.id !== lastSeenEmittedId.current) {
+        lastSeenEmittedId.current = lastMsg.id;
+        socket?.emit("chat:seen", { roomId: room?._id, msgId: lastMsg.id, userId: user?.id });
+      }
+    }
+  }, [isChatOpen, messages, setUnreadCount, room?._id, user?.id, socket]);
 
   // ── Auto-scroll ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -424,8 +453,23 @@ export const RightChatPanel = () => {
                     )
                   )}
 
-                  {/* Timestamp */}
-                  <div className={`mt-1 text-[9px] ${isSelf ? "text-black/30" : "text-white/25"} text-right`}>{time}</div>
+                  {/* Timestamp & Seen Status */}
+                  <div className="mt-1 flex items-center justify-end gap-1.5">
+                    {isSelf && m.seenBy && m.seenBy.length > 0 && (
+                      <div className="flex -space-x-1">
+                        {m.seenBy.slice(0, 3).map(uid => {
+                          const mem = room?.members?.find(rm => rm.id === uid);
+                          return (
+                            <div key={uid} className="h-3 w-3 rounded-full border border-black bg-indigo-500 overflow-hidden" title={mem?.name || "Seen"}>
+                              {mem?.avatarUrl ? <img src={mem.avatarUrl} className="h-full w-full object-cover" /> : null}
+                            </div>
+                          );
+                        })}
+                        {m.seenBy.length > 3 && <span className="text-[7px] text-black/40 ml-1">+{m.seenBy.length - 3}</span>}
+                      </div>
+                    )}
+                    <div className={`text-[9px] ${isSelf ? "text-black/30" : "text-white/25"} text-right`}>{time}</div>
+                  </div>
                 </div>
               </div>
             );

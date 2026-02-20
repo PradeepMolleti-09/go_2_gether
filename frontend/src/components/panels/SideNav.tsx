@@ -70,6 +70,18 @@ export const SideNav = () => {
         return () => { socket.off("room:member-removed", handleKicked); };
     }, [socket, user, clearRoom, showNotification]);
 
+    const [isOffline, setIsOffline] = useState(!navigator.onLine);
+    useEffect(() => {
+        const h1 = () => setIsOffline(false);
+        const h2 = () => setIsOffline(true);
+        window.addEventListener("online", h1);
+        window.addEventListener("offline", h2);
+        return () => {
+            window.removeEventListener("online", h1);
+            window.removeEventListener("offline", h2);
+        };
+    }, []);
+
     const handleStartTrip = async () => {
         if (!room?._id) return;
         setIsLoading(true);
@@ -106,29 +118,17 @@ export const SideNav = () => {
 
     const navItems: NavItem[] = [
         {
+            id: "members",
+            label: `Members (${room?.members?.length ?? 0})`,
+            icon: "👥",
+            onClick: () => setMembersOpen(true),
+        },
+        {
             id: "chat",
             label: "Chat",
             icon: "💬",
             active: isChatOpen,
             onClick: toggleChat,
-        },
-        {
-            id: "sos",
-            label: "SOS",
-            icon: "🚨",
-            accent: true,
-            onClick: () => {
-                if (socket && room?._id) {
-                    socket.emit("trip:sos", { roomId: room._id, reason: "manual" });
-                    showNotification("SOS Alert Sent!", "error");
-                }
-            },
-        },
-        {
-            id: "refresh",
-            label: "Refresh",
-            icon: "🔄",
-            onClick: () => window.location.reload(),
         },
         {
             id: "checkpoints",
@@ -138,22 +138,16 @@ export const SideNav = () => {
             onClick: () => setIsCheckpointsOpen(!isCheckpointsOpen),
         },
         {
-            id: "members",
-            label: `Members (${room?.members?.length ?? 0})`,
-            icon: "👥",
-            onClick: () => setMembersOpen(true),
+            id: "gallery",
+            label: "Gallery",
+            icon: "🖼️",
+            onClick: () => setGalleryOpen(true),
         },
         {
             id: "trip-info",
             label: "Room Info",
             icon: "ℹ️",
             onClick: () => setTripInfoOpen(true),
-        },
-        {
-            id: "gallery",
-            label: "Gallery",
-            icon: "🖼️",
-            onClick: () => setGalleryOpen(true),
         },
         {
             id: "theme",
@@ -167,6 +161,24 @@ export const SideNav = () => {
             icon: lowBandwidth ? "📶" : "📵",
             active: lowBandwidth,
             onClick: toggleLowBandwidth,
+        },
+        {
+            id: "refresh",
+            label: "Refresh",
+            icon: "🔄",
+            onClick: () => window.location.reload(),
+        },
+        {
+            id: "sos",
+            label: "SOS",
+            icon: "🚨",
+            accent: true,
+            onClick: () => {
+                if (socket && room?._id) {
+                    socket.emit("trip:sos", { roomId: room._id, reason: "manual" });
+                    showNotification("SOS Alert Sent!", "error");
+                }
+            },
         },
         {
             id: "leave",
@@ -244,6 +256,16 @@ export const SideNav = () => {
 
     return (
         <>
+            {/* Offline Indicator */}
+            {isOffline && (
+                <div className="fixed top-20 left-1/2 z-[200] -translate-x-1/2 animate-bounce">
+                    <div className="flex items-center gap-2 rounded-full bg-red-500 px-4 py-1.5 text-[10px] font-black uppercase tracking-wider text-white shadow-2xl">
+                        <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                        Offline Mode
+                    </div>
+                </div>
+            )}
+
             {/* ═══════════════════════════════════════════════════
                 DESKTOP — vertical pill sidebar (hover to expand)
             ═══════════════════════════════════════════════════ */}

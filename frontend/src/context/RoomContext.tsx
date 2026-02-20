@@ -16,6 +16,7 @@ interface RoomContextValue {
   role: Role;
   setRoom: (room: RoomDto, role: Role) => void;
   addMember: (member: RoomMemberDto) => void;
+  removeMember: (userId: string) => void;
   clearRoom: () => void;
 }
 
@@ -82,6 +83,16 @@ export const RoomProvider = ({ children }: { children: ReactNode }) => {
     );
   };
 
+  const removeMember = (userId: string) => {
+    if (!room || !room.members) return;
+    const nextRoom = { ...room, members: room.members.filter((m) => m.id !== userId) };
+    setRoomState(nextRoom);
+    window.sessionStorage.setItem(
+      "go2gether_room",
+      JSON.stringify({ room: nextRoom, role })
+    );
+  };
+
   const clearRoom = () => {
     setRoomState(null);
     setRole(null);
@@ -89,7 +100,7 @@ export const RoomProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <RoomContext.Provider value={{ room, role, setRoom, addMember, clearRoom }}>
+    <RoomContext.Provider value={{ room, role, setRoom, addMember, removeMember, clearRoom }}>
       {children}
     </RoomContext.Provider>
   );
