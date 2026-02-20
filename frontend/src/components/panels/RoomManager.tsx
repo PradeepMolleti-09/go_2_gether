@@ -1,6 +1,6 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Users, ArrowRight, Copy, LogOut, Loader2, User, Camera } from "lucide-react";
+import { Plus, Users, ArrowRight, Copy, LogOut, Loader2, User, Camera, Share2 } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
 import { QRCodeCanvas } from "qrcode.react";
 import { useRoom } from "../../context/RoomContext";
@@ -20,6 +20,15 @@ export const RoomManager = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isScanning, setIsScanning] = useState(false);
     const scannerRef = useRef<Html5Qrcode | null>(null);
+
+    // Cleanup scanner on unmount
+    useEffect(() => {
+        return () => {
+            if (scannerRef.current) {
+                scannerRef.current.stop().catch(() => { });
+            }
+        };
+    }, []);
 
     const handleCreateRoom = async () => {
         setIsLoading(true);
@@ -98,12 +107,42 @@ export const RoomManager = () => {
                     <h3 className="text-4xl font-black tracking-tighter text-white tabular-nums">{room.code}</h3>
 
                     <div className="mt-4 rounded-2xl bg-white p-3 shadow-xl">
-                        <QRCodeCanvas value={room.code} size={140} level="H" />
+                        <QRCodeCanvas
+                            value={`${window.location.origin}/join/${room.code}`}
+                            size={140}
+                            level="H"
+                        />
                     </div>
                     <p className="mt-4 text-[10px] font-bold text-white/40 uppercase tracking-widest">Scan to join expedition</p>
                 </div>
 
                 <div className="flex flex-col gap-3">
+                    <button
+                        onClick={async () => {
+                            const joinUrl = `${window.location.origin}/join/${room.code}`;
+                            if (navigator.share) {
+                                try {
+                                    await navigator.share({
+                                        title: 'Join Go2Gether',
+                                        text: `Join my trip on Go2Gether! Code: ${room.code}`,
+                                        url: joinUrl,
+                                    });
+                                } catch (err) {
+                                    if ((err as Error).name !== 'AbortError') {
+                                        navigator.clipboard.writeText(joinUrl);
+                                        showNotification("Link copied to clipboard", "info");
+                                    }
+                                }
+                            } else {
+                                navigator.clipboard.writeText(joinUrl);
+                                showNotification("Link copied to clipboard", "info");
+                            }
+                        }}
+                        className="flex items-center justify-center gap-3 rounded-2xl bg-indigo-500/10 py-4 text-[11px] font-black uppercase tracking-widest text-indigo-400 transition-all hover:bg-indigo-500/20 active:scale-95 border border-indigo-500/10"
+                    >
+                        <Share2 size={14} />
+                        Share Trip Link
+                    </button>
                     <button
                         onClick={() => {
                             navigator.clipboard.writeText(room.code);
@@ -281,7 +320,7 @@ export const RoomManager = () => {
                                         maxLength={6}
                                         onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                                         onKeyDown={(e) => e.key === "Enter" && joinCode.length >= 4 && handleJoinRoom()}
-                                        className="w-full rounded-3xl border border-white/10 bg-white/5 px-8 pt-6 pb-6 text-center text-3xl font-black tracking-[0.5em] text-white outline-none focus:border-indigo-500/50 focus:ring-[12px] focus:ring-indigo-500/10 transition-all"
+                                        className="w-full rounded-3xl border border-white/10 bg-white/5 pl-8 pr-[72px] pt-6 pb-6 text-center text-2xl sm:text-3xl font-black tracking-[0.2em] sm:tracking-[0.5em] text-white outline-none focus:border-indigo-500/50 focus:ring-[12px] focus:ring-indigo-500/10 transition-all"
                                     />
                                     <button
                                         onClick={startScanner}

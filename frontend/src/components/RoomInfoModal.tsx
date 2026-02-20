@@ -4,6 +4,8 @@ import { useMapContext } from "../context/MapContext";
 import { useNotification } from "../context/NotificationContext";
 import { useAuth } from "../context/AuthContext";
 import { transferLeadershipApi } from "../services/roomService";
+import { QRCodeCanvas } from "qrcode.react";
+import { Share2 } from "lucide-react";
 
 interface RoomInfoModalProps {
     open: boolean;
@@ -24,9 +26,6 @@ export const RoomInfoModal = ({ open, onClose }: RoomInfoModalProps) => {
     const otherMembers = room.members.filter((m) => m.id !== room.leader.id);
 
     const joinUrl = `${window.location.origin}/join/${room.code}`;
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
-        joinUrl
-    )}&bgcolor=ffffff&color=000000&margin=10`;
 
     const copyToClipboard = () => {
         navigator.clipboard.writeText(room.code);
@@ -96,10 +95,10 @@ export const RoomInfoModal = ({ open, onClose }: RoomInfoModalProps) => {
                     <div className="flex flex-col items-center gap-8">
                         {/* QR Code */}
                         <div className="group relative overflow-hidden rounded-3xl border-4 border-white/5 bg-white p-3 shadow-2xl transition-transform hover:scale-105">
-                            <img
-                                src={qrUrl}
-                                alt="Room QR Code"
-                                className="h-40 w-40"
+                            <QRCodeCanvas
+                                value={joinUrl}
+                                size={160}
+                                level="H"
                             />
                             <div className="absolute inset-0 flex items-center justify-center bg-black/60 opacity-0 transition-opacity group-hover:opacity-100">
                                 <p className="text-xs font-medium text-white">Scan to Join</p>
@@ -138,12 +137,36 @@ export const RoomInfoModal = ({ open, onClose }: RoomInfoModalProps) => {
                                 <label className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
                                     Invite Link
                                 </label>
-                                <button
-                                    onClick={copyLinkToClipboard}
-                                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-black transition-transform active:scale-95"
-                                >
-                                    Copy Link
-                                </button>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={copyLinkToClipboard}
+                                        className="flex-1 rounded-2xl bg-white px-4 py-3 text-sm font-bold text-black transition-transform active:scale-95"
+                                    >
+                                        Copy Link
+                                    </button>
+                                    <button
+                                        onClick={async () => {
+                                            if (navigator.share) {
+                                                try {
+                                                    await navigator.share({
+                                                        title: 'Join Go2Gether',
+                                                        text: `Join my trip on Go2Gether! Code: ${room.code}`,
+                                                        url: joinUrl,
+                                                    });
+                                                } catch (err) {
+                                                    if ((err as Error).name !== 'AbortError') {
+                                                        copyLinkToClipboard();
+                                                    }
+                                                }
+                                            } else {
+                                                copyLinkToClipboard();
+                                            }
+                                        }}
+                                        className="flex aspect-square items-center justify-center rounded-2xl bg-indigo-500/10 px-4 text-indigo-400 transition-all hover:bg-indigo-500/20 active:scale-95"
+                                    >
+                                        <Share2 size={18} />
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>

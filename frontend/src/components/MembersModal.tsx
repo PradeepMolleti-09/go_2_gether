@@ -4,6 +4,7 @@ import { useSocket } from "../context/SocketContext";
 import { useNotification } from "../context/NotificationContext";
 import { ConfirmationModal } from "./ui/ConfirmationModal";
 import { useState } from "react";
+import { Share2 } from "lucide-react";
 
 interface Props {
     open: boolean;
@@ -107,6 +108,38 @@ export const MembersModal = ({ open, onClose }: Props) => {
                         </div>
                     )}
                 </div>
+
+                {/* Invite Button at the bottom */}
+                {room && (
+                    <div className="mt-6 border-t border-white/10 pt-4">
+                        <button
+                            onClick={async () => {
+                                const joinUrl = `${window.location.origin}/join/${room.code}`;
+                                if (navigator.share) {
+                                    try {
+                                        await navigator.share({
+                                            title: 'Join Go2Gether',
+                                            text: `Join my trip on Go2Gether! Code: ${room.code}`,
+                                            url: joinUrl,
+                                        });
+                                    } catch (err) {
+                                        if ((err as Error).name !== 'AbortError') {
+                                            navigator.clipboard.writeText(joinUrl);
+                                            showNotification("Link copied to clipboard", "info");
+                                        }
+                                    }
+                                } else {
+                                    navigator.clipboard.writeText(joinUrl);
+                                    showNotification("Link copied to clipboard", "info");
+                                }
+                            }}
+                            className="flex w-full items-center justify-center gap-3 rounded-2xl bg-indigo-600 py-3 text-[11px] font-black uppercase tracking-widest text-white transition-all hover:bg-indigo-500 active:scale-95"
+                        >
+                            <Share2 size={14} />
+                            Invite More People
+                        </button>
+                    </div>
+                )}
             </div>
 
             <ConfirmationModal
