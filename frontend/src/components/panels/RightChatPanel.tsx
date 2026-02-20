@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, type FormEvent } from "react";
+import { useEffect, useState, useRef, useCallback, type FormEvent } from "react";
 import { useUI } from "../../context/UIContext";
 import { useSocket } from "../../context/SocketContext";
 import { useRoom } from "../../context/RoomContext";
@@ -20,21 +20,23 @@ interface ChatMessage {
   audioData?: string;
   location?: { lat: number; lng: number };
   createdAt: number;
-  isCheckpointNotification?: boolean;
-  checkpointId?: string;
   isDeleted?: boolean;
 }
 
-const addAndPersist = (
-  prev: ChatMessage[],
-  msg: ChatMessage,
-  roomId: string
-): ChatMessage[] => {
-  // Deduplicate by id
+interface ContextMenu {
+  msgId: string;
+  x: number;
+  y: number;
+  canEdit: boolean;
+}
+
+const persist = (msgs: ChatMessage[], roomId: string) => {
+  window.localStorage.setItem(`go2gether_chat_${roomId}`, JSON.stringify(msgs));
+};
+
+const addAndDedup = (prev: ChatMessage[], msg: ChatMessage): ChatMessage[] => {
   if (prev.some(m => m.id === msg.id)) return prev;
-  const updated = [...prev, msg].slice(-100);
-  window.localStorage.setItem(`go2gether_chat_${roomId}`, JSON.stringify(updated));
-  return updated;
+  return [...prev, msg].slice(-100);
 };
 
 export const RightChatPanel = () => {
@@ -50,23 +52,38 @@ export const RightChatPanel = () => {
   const [uploading, setUploading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editInput, setEditInput] = useState("");
+  const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastPlayedId = useRef<string | null>(null);
   const lastCountedId = useRef<string | null>(null);
 
-  // Audio Recording State
+  // Voice
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const recordingStarted = useRef(false); // prevents double-fire on mobile
 
-  // Hydrate messages from localStorage
+  // Long-press detection
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Local state updater helpers ───────────────────────────────────────────
+  const addLocal = useCallback((msg: ChatMessage) => {
+    if (!room?._id) return;
+    setMessages(prev => {
+      const next = addAndDedup(prev, msg);
+      if (next !== prev) persist(next, room._id);
+      return next;
+    });
+  }, [room?._id]);
+
+  // ── Hydrate from localStorage ─────────────────────────────────────────────
   useEffect(() => {
     if (!room?._id) return;
     const stored = window.localStorage.getItem(`go2gether_chat_${room._id}`);
     if (stored) {
-      try { setMessages(JSON.parse(stored)); } catch { /* ignore */ }
+      try { setMessages(JSON.parse(stored)); } catch { /* noop */ }
     }
   }, [room?._id]);
 
@@ -76,54 +93,44 @@ export const RightChatPanel = () => {
     const rid = room._id;
 
     const onMessage = (payload: any) => {
-      // Ignore echoes of own locally-added messages
+      // Server uses socket.to() so the SENDER never receives this.
+      // Recipients add the message; sender has already added it locally.
       const msg: ChatMessage = {
-        ...payload,
         id: payload.id || `${Date.now()}-${Math.random()}`,
-        createdAt: payload.createdAt || Date.now()
+        createdAt: payload.createdAt || Date.now(),
+        ...payload,
       };
-      setMessages(prev => addAndPersist(prev, msg, rid));
-      if (msg.userId !== user?.id) playSound("message");
+      setMessages(prev => {
+        const next = addAndDedup(prev, msg);
+        if (next !== prev) {
+          persist(next, rid);
+          if (msg.userId !== user?.id) playSound("message");
+        }
+        return next;
+      });
     };
 
-    const onUserJoined = (payload: { user?: { id: string; name: string; avatarUrl?: string }; userId?: string }) => {
+    const onUserJoined = (payload: { user?: { id: string; name: string; avatarUrl?: string } }) => {
       const name = payload.user?.name || "Someone";
-      const systemMsg: ChatMessage = {
-        id: `sys-join-${Date.now()}`,
-        userId: "system",
-        type: "system",
-        text: `👋 ${name} joined the room`,
-        createdAt: Date.now()
-      };
-      setMessages(prev => addAndPersist(prev, systemMsg, rid));
+      const sys: ChatMessage = { id: `sys-join-${Date.now()}`, userId: "system", type: "system", text: `👋 ${name} joined`, createdAt: Date.now() };
+      setMessages(prev => { const n = addAndDedup(prev, sys); if (n !== prev) persist(n, rid); return n; });
       showNotification(`${name} joined the room`, "info");
     };
 
     const onUserLeft = (payload: { userId: string }) => {
-      const memberName = room.members?.find(m => m.id === payload.userId)?.name || "Someone";
-      const systemMsg: ChatMessage = {
-        id: `sys-left-${Date.now()}`,
-        userId: "system",
-        type: "system",
-        text: `👋 ${memberName} left the room`,
-        createdAt: Date.now()
-      };
-      setMessages(prev => addAndPersist(prev, systemMsg, rid));
+      const name = room.members?.find(m => m.id === payload.userId)?.name || "Someone";
+      const sys: ChatMessage = { id: `sys-left-${Date.now()}`, userId: "system", type: "system", text: `👋 ${name} left`, createdAt: Date.now() };
+      setMessages(prev => { const n = addAndDedup(prev, sys); if (n !== prev) persist(n, rid); return n; });
     };
 
     const onDeleted = (payload: { id: string }) => {
-      setMessages(prev => {
-        const updated = prev.filter(m => m.id !== payload.id);
-        window.localStorage.setItem(`go2gether_chat_${rid}`, JSON.stringify(updated));
-        return updated;
-      });
+      setMessages(prev => { const n = prev.filter(m => m.id !== payload.id); persist(n, rid); return n; });
     };
 
     const onEdited = (payload: { id: string; text: string }) => {
       setMessages(prev => {
-        const updated = prev.map(m => m.id === payload.id ? { ...m, text: payload.text } : m);
-        window.localStorage.setItem(`go2gether_chat_${rid}`, JSON.stringify(updated));
-        return updated;
+        const n = prev.map(m => m.id === payload.id ? { ...m, text: payload.text } : m);
+        persist(n, rid); return n;
       });
     };
 
@@ -132,7 +139,6 @@ export const RightChatPanel = () => {
     socket.on("user-left", onUserLeft);
     socket.on("chat:deleted", onDeleted);
     socket.on("chat:edited", onEdited);
-
     return () => {
       socket.off("chat:message", onMessage);
       socket.off("user-joined", onUserJoined);
@@ -142,72 +148,50 @@ export const RightChatPanel = () => {
     };
   }, [socket, room?._id, room?.members, user?.id, showNotification]);
 
-  // ── Auto-play voice & unread count ───────────────────────────────────────
+  // ── Auto-play voice (incoming only) + unread ──────────────────────────────
   useEffect(() => {
     if (!messages.length) return;
     const last = messages[messages.length - 1];
-
-    // Auto-play incoming voice
     if (last.type === "voice" && last.audioData && last.userId !== user?.id && last.id !== lastPlayedId.current) {
       lastPlayedId.current = last.id;
       new Audio(last.audioData).play().catch(console.error);
     }
-
-    // Unread count
     if (!isChatOpen && last.userId !== user?.id && last.id !== lastCountedId.current) {
       lastCountedId.current = last.id;
       setUnreadCount(prev => prev + 1);
     }
-    if (isChatOpen) setUnreadCount(0);
   }, [messages, isChatOpen, user?.id, setUnreadCount]);
+
+  useEffect(() => { if (isChatOpen) setUnreadCount(0); }, [isChatOpen, setUnreadCount]);
 
   // ── Auto-scroll ───────────────────────────────────────────────────────────
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, isChatOpen]);
 
-  // Reset unread when opening chat
+  // ── Close context menu on outside click ───────────────────────────────────
   useEffect(() => {
-    if (isChatOpen) setUnreadCount(0);
-  }, [isChatOpen, setUnreadCount]);
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [contextMenu]);
 
-  // ── Actions ───────────────────────────────────────────────────────────────
-  const addLocalMsg = (overrides: Partial<ChatMessage>) => {
-    if (!user || !room?._id) return;
-    const msg: ChatMessage = {
-      id: `local-${Date.now()}`,
-      userId: user.id,
-      userName: user.name,
-      userAvatar: user.avatarUrl,
-      createdAt: Date.now(),
-      type: "text",
-      ...overrides,
-    };
-    setMessages(prev => addAndPersist(prev, msg, room._id));
-  };
-
+  // ── Send text ─────────────────────────────────────────────────────────────
   const sendMessage = (e?: FormEvent) => {
     e?.preventDefault();
     if (!socket || !room?._id || !user || !input.trim()) return;
     const text = input.trim();
     const id = `msg-${Date.now()}-${user.id}`;
-
-    // 1. Show locally immediately
-    addLocalMsg({ id, text, type: "text" });
-
-    // 2. Emit to server (server broadcasts to others, NOT back to sender)
-    socket.emit("chat:message", {
-      id,
-      roomId: room._id,
-      text,
-      type: "text",
-      userName: user.name,
-      userAvatar: user.avatarUrl,
-    });
+    addLocal({ id, userId: user.id, userName: user.name, userAvatar: user.avatarUrl, text, type: "text", createdAt: Date.now() });
+    socket.emit("chat:message", { id, roomId: room._id, text, type: "text", userName: user.name, userAvatar: user.avatarUrl, userId: user.id });
     setInput("");
   };
 
-  const startRecording = async () => {
+  // ── Voice recording (mobile-safe: use flag to prevent double trigger) ─────
+  const startRecording = useCallback(async () => {
+    if (recordingStarted.current || isRecording) return;
+    recordingStarted.current = true;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
@@ -223,54 +207,41 @@ export const RightChatPanel = () => {
           const base64 = reader.result as string;
           if (!socket || !user || !room?._id) return;
           const id = `voice-${Date.now()}-${user.id}`;
-          addLocalMsg({ id, type: "voice", audioData: base64, text: "🎤 Voice Message" });
-          socket.emit("chat:message", {
-            id,
-            roomId: room._id,
-            type: "voice",
-            audioData: base64,
-            text: "🎤 Voice Message",
-            userName: user.name,
-            userAvatar: user.avatarUrl,
-          });
+          // Add locally (self sees it once)
+          addLocal({ id, userId: user.id, userName: user.name, userAvatar: user.avatarUrl, type: "voice", audioData: base64, text: "🎤 Voice Message", createdAt: Date.now() });
+          // Broadcast to room members (they add it via onMessage)
+          socket.emit("chat:message", { id, roomId: room._id, type: "voice", audioData: base64, text: "🎤 Voice Message", userName: user.name, userAvatar: user.avatarUrl, userId: user.id });
         };
         stream.getTracks().forEach(t => t.stop());
+        recordingStarted.current = false;
       };
       recorder.start();
       setIsRecording(true);
       playSound("system");
     } catch {
+      recordingStarted.current = false;
       showNotification("Microphone access denied", "error");
     }
-  };
+  }, [isRecording, socket, user, room?._id, addLocal, showNotification]);
 
-  const stopRecording = () => {
+  const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
     }
-  };
+  }, [isRecording]);
 
+  // ── Photo upload ──────────────────────────────────────────────────────────
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !room?._id || !user) return;
     setUploading(true);
     try {
-      const tripId = room.activeTrip || room._id;
-      const result = await uploadPhoto(tripId, file);
-      const media = result.media;
+      const result = await uploadPhoto(room.activeTrip || room._id, file);
+      const { media } = result;
       const id = `img-${Date.now()}-${user.id}`;
-      addLocalMsg({ id, imageUrl: media.url, mediaId: media._id, text: "Shared a photo", type: "image" });
-      socket?.emit("chat:message", {
-        id,
-        roomId: room._id,
-        imageUrl: media.url,
-        mediaId: media._id,
-        text: "Shared a photo",
-        type: "image",
-        userName: user.name,
-        userAvatar: user.avatarUrl,
-      });
+      addLocal({ id, userId: user.id, userName: user.name, userAvatar: user.avatarUrl, imageUrl: media.url, mediaId: media._id, text: "Shared a photo", type: "image", createdAt: Date.now() });
+      socket?.emit("chat:message", { id, roomId: room._id, imageUrl: media.url, mediaId: media._id, text: "Shared a photo", type: "image", userName: user.name, userAvatar: user.avatarUrl, userId: user.id });
       showNotification("Photo shared!", "success");
     } catch {
       showNotification("Failed to upload photo", "error");
@@ -280,233 +251,287 @@ export const RightChatPanel = () => {
     }
   };
 
-  const handleDownload = (url: string, filename: string) => {
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = filename;
-    link.target = "_blank";
-    link.click();
-  };
-
+  // ── Delete / Edit ─────────────────────────────────────────────────────────
   const deleteMsg = (id: string) => {
-    if (!window.confirm("Delete this message?")) return;
-    setMessages(prev => {
-      const updated = prev.filter(m => m.id !== id);
-      if (room?._id) window.localStorage.setItem(`go2gether_chat_${room._id}`, JSON.stringify(updated));
-      return updated;
-    });
+    setContextMenu(null);
+    setMessages(prev => { const n = prev.filter(m => m.id !== id); if (room?._id) persist(n, room._id); return n; });
     socket?.emit("chat:delete", { roomId: room?._id, id });
   };
 
-  const startEdit = (msg: ChatMessage) => { setEditingId(msg.id); setEditInput(msg.text || ""); };
+  const beginEdit = (msg: ChatMessage) => {
+    setContextMenu(null);
+    setEditingId(msg.id);
+    setEditInput(msg.text || "");
+  };
 
   const saveEdit = (e: FormEvent) => {
     e.preventDefault();
     if (!editingId || !editInput.trim()) return;
-    setMessages(prev => {
-      const updated = prev.map(m => m.id === editingId ? { ...m, text: editInput.trim() } : m);
-      if (room?._id) window.localStorage.setItem(`go2gether_chat_${room._id}`, JSON.stringify(updated));
-      return updated;
-    });
-    socket?.emit("chat:edit", { roomId: room?._id, id: editingId, text: editInput.trim() });
+    const text = editInput.trim();
+    setMessages(prev => { const n = prev.map(m => m.id === editingId ? { ...m, text } : m); if (room?._id) persist(n, room._id); return n; });
+    socket?.emit("chat:edit", { roomId: room?._id, id: editingId, text });
     setEditingId(null);
+    setEditInput("");
   };
 
-  const handleMsgClick = (msg: ChatMessage) => {
-    if (msg.location) setFocusLocation(msg.location);
-    else if (msg.userId && memberPositions[msg.userId]) setFocusLocation(memberPositions[msg.userId]);
+  // ── Long-press / right-click context menu ─────────────────────────────────
+  const openContextMenu = (e: React.MouseEvent | React.TouchEvent, msg: ChatMessage) => {
+    if (msg.userId !== user?.id) return; // only own messages
+    if (msg.type === "system") return;
+    e.preventDefault();
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const x = "touches" in e ? (e as React.TouchEvent).touches[0]?.clientX ?? rect.left : (e as React.MouseEvent).clientX;
+    const y = "touches" in e ? (e as React.TouchEvent).touches[0]?.clientY ?? rect.top : (e as React.MouseEvent).clientY;
+    setContextMenu({ msgId: msg.id, x, y, canEdit: msg.type === "text" && !msg.imageUrl });
+  };
+
+  const startLongPress = (msg: ChatMessage) => {
+    if (msg.userId !== user?.id || msg.type === "system") return;
+    longPressTimer.current = setTimeout(() => {
+      navigator.vibrate?.(40);
+      setContextMenu({ msgId: msg.id, x: window.innerWidth / 2, y: window.innerHeight / 2 - 60, canEdit: msg.type === "text" && !msg.imageUrl });
+    }, 500);
+  };
+
+  const cancelLongPress = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
   };
 
   return (
-    <div className={`fixed inset-0 z-[100] flex flex-col bg-black/92 backdrop-blur-3xl transition-all duration-500 md:absolute md:inset-auto md:right-4 md:top-24 md:h-[70vh] md:w-96 md:rounded-[40px] md:border md:border-white/10 md:shadow-2xl
-      ${isChatOpen ? "opacity-100 pointer-events-auto" : "pointer-events-none opacity-0 translate-x-8"}`}>
-
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-white/5 px-5 py-4 pt-safe shrink-0">
-        <div>
-          <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white/30">Go2Gether</p>
-          <h3 className="text-base font-black text-white">Group Chat</h3>
+    <>
+      {/* ── Chat Panel ── */}
+      <div
+        className={`fixed inset-x-0 bottom-0 top-0 z-[90] flex flex-col bg-[#0a0a0a]/95 backdrop-blur-3xl transition-all duration-500
+          md:absolute md:inset-auto md:right-4 md:top-20 md:bottom-auto md:h-[72vh] md:w-[22rem] md:rounded-[32px] md:border md:border-white/10 md:shadow-[0_40px_80px_rgba(0,0,0,0.8)]
+          ${isChatOpen ? "translate-y-0 opacity-100 pointer-events-auto" : "translate-y-full md:translate-y-0 md:translate-x-4 opacity-0 pointer-events-none"}
+        `}
+        style={{ isolation: "isolate" }}
+      >
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between border-b border-white/5 px-5 py-4">
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white/30">Go2Gether</p>
+            <h3 className="text-sm font-black text-white">Group Chat</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Member avatars */}
+            {room?.members && room.members.length > 0 && (
+              <div className="flex -space-x-1.5">
+                {[room.leader, ...(room.members.filter(m => m.id !== room.leader?.id))].slice(0, 4).map((m, i) => m && (
+                  <div key={m.id} className="h-7 w-7 shrink-0 overflow-hidden rounded-full border-2 border-black bg-indigo-500 flex items-center justify-center" style={{ zIndex: 10 - i }}>
+                    {m.avatarUrl
+                      ? <img src={m.avatarUrl} alt={m.name} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                      : <span className="text-[9px] font-black text-white">{m.name[0]}</span>}
+                  </div>
+                ))}
+                {room.members.length > 4 && (
+                  <div className="h-7 w-7 rounded-full border-2 border-black bg-white/10 flex items-center justify-center text-[9px] font-black text-white">
+                    +{room.members.length - 4}
+                  </div>
+                )}
+              </div>
+            )}
+            <button onClick={toggleChat} className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/5 text-white/40 hover:bg-white/10 transition-all">✕</button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Member avatars row */}
-          {room?.members && room.members.length > 0 && (
-            <div className="flex -space-x-2">
-              {[room.leader, ...(room.members.filter(m => m.id !== room.leader?.id) || [])].slice(0, 4).map((m, i) => m && (
-                <div key={m.id} className="h-7 w-7 overflow-hidden rounded-full border-2 border-black bg-indigo-500 flex items-center justify-center" style={{ zIndex: 10 - i }}>
-                  {m.avatarUrl ? (
-                    <img src={m.avatarUrl} alt={m.name} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-                  ) : (
-                    <span className="text-[9px] font-black text-white">{m.name.substring(0, 1)}</span>
-                  )}
-                </div>
-              ))}
-              {(room.members.length) > 4 && (
-                <div className="h-7 w-7 rounded-full border-2 border-black bg-white/10 flex items-center justify-center text-[9px] font-black text-white">+{room.members.length - 4}</div>
-              )}
+
+        {/* Messages */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-2 px-3 py-3 chat-scroll">
+          {messages.length === 0 && (
+            <div className="flex h-full items-center justify-center flex-col gap-2 text-center py-16">
+              <span className="text-3xl">💬</span>
+              <p className="text-[11px] text-neutral-600 uppercase tracking-widest">No messages yet</p>
+              <p className="text-[10px] text-neutral-700">Say hello to your group!</p>
             </div>
           )}
-          <button onClick={toggleChat} className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/5 text-white/50 hover:bg-white/10">✕</button>
-        </div>
-      </div>
 
-      {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-3 px-4 py-4 custom-scrollbar">
-        {messages.length === 0 && (
-          <div className="flex h-full flex-col items-center justify-center text-center py-12">
-            <div className="text-3xl mb-3">💬</div>
-            <p className="text-[11px] text-neutral-500 uppercase tracking-widest">No messages yet</p>
-            <p className="text-[10px] text-neutral-600 mt-1">Say hello to your group!</p>
-          </div>
-        )}
+          {messages.map((m) => {
+            const isSelf = m.userId === user?.id;
+            const isSystem = m.type === "system" || m.userId === "system";
+            const time = new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+            const isEditing = editingId === m.id;
 
-        {messages.map((m) => {
-          const isSelf = m.userId === user?.id;
-          const isSystem = m.type === "system" || m.userId === "system";
-          const time = new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-          // System / join messages
-          if (isSystem) {
-            return (
-              <div key={m.id} className="flex justify-center">
-                <div className="rounded-full border border-white/5 bg-white/5 px-4 py-1.5 text-[10px] font-bold text-white/40">
-                  {m.text}
+            if (isSystem) {
+              return (
+                <div key={m.id} className="flex justify-center py-1">
+                  <span className="rounded-full border border-white/5 bg-white/5 px-4 py-1 text-[10px] font-bold text-white/35">{m.text}</span>
                 </div>
-              </div>
-            );
-          }
+              );
+            }
 
-          return (
-            <div key={m.id} className={`flex flex-col ${isSelf ? "items-end" : "items-start"}`}>
-              {!isSelf && (
-                <span className="mb-1 ml-3 text-[10px] font-bold text-neutral-500">{m.userName || "Member"}</span>
-              )}
-              <div className="group flex max-w-[82%] items-end gap-2">
+            return (
+              <div key={m.id} className={`flex flex-col select-none ${isSelf ? "items-end" : "items-start"}`}>
+                {!isSelf && (
+                  <span className="mb-0.5 ml-2 text-[10px] font-bold text-neutral-500">{m.userName || "Member"}</span>
+                )}
+
                 <div
-                  className={`relative rounded-3xl px-4 py-3 text-sm shadow-lg transition-all
+                  className={`relative max-w-[80%] rounded-2xl px-4 py-3 text-sm shadow-md cursor-pointer active:scale-95 transition-transform
                     ${isSelf
-                      ? "bg-white text-black rounded-br-lg"
-                      : "bg-white/8 border border-white/8 text-white rounded-bl-lg"
-                    }`}
+                      ? "bg-white text-black rounded-br-sm"
+                      : "bg-white/10 border border-white/8 text-white rounded-bl-sm"
+                    }
+                    ${contextMenu?.msgId === m.id ? "ring-2 ring-white/30" : ""}
+                  `}
+                  onContextMenu={e => openContextMenu(e, m)}
+                  onTouchStart={() => startLongPress(m)}
+                  onTouchEnd={cancelLongPress}
+                  onTouchMove={cancelLongPress}
+                  onClick={() => {
+                    if (m.location) setFocusLocation(m.location);
+                    else if (!isSelf && memberPositions[m.userId]) setFocusLocation(memberPositions[m.userId]);
+                    if (m.type === "voice" && m.audioData) new Audio(m.audioData).play().catch(console.error);
+                  }}
                 >
                   {/* Image */}
                   {m.imageUrl && (
-                    <div className="mb-2 overflow-hidden rounded-xl">
-                      <img src={m.imageUrl} alt="" className="max-h-52 w-full object-cover cursor-pointer" onClick={() => handleDownload(m.imageUrl!, "shared.jpg")} />
-                      <p className="mt-1 text-[9px] opacity-40 text-center">Tap to download</p>
+                    <div className="mb-2 overflow-hidden rounded-xl -mx-1">
+                      <img src={m.imageUrl} alt="" className="max-h-52 w-full object-cover" />
                     </div>
                   )}
 
                   {/* Voice */}
-                  {m.type === "voice" ? (
-                    <div
-                      className="flex items-center gap-3 cursor-pointer"
-                      onClick={() => m.audioData && new Audio(m.audioData).play().catch(console.error)}
-                    >
-                      <div className={`flex h-9 w-9 items-center justify-center rounded-full ${isSelf ? "bg-black/10" : "bg-white/10"}`}>🔊</div>
+                  {m.type === "voice" && (
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${isSelf ? "bg-black/10" : "bg-white/10"}`}>
+                        🔊
+                      </div>
                       <div>
                         <p className="font-black text-[11px] uppercase tracking-widest">Voice Note</p>
                         <p className="text-[9px] opacity-50">Tap to replay</p>
                       </div>
                     </div>
-                  ) : (
-                    /* Text with optional edit form */
-                    editingId === m.id ? (
-                      <form onSubmit={saveEdit} className="flex flex-col gap-2 min-w-[130px]">
-                        <input autoFocus value={editInput} onChange={e => setEditInput(e.target.value)}
-                          className="bg-black/10 rounded-lg px-2 py-1 text-sm outline-none font-medium" />
-                        <div className="flex gap-2">
-                          <button type="submit" className="text-[9px] font-black uppercase text-indigo-500">Save</button>
-                          <button type="button" onClick={() => setEditingId(null)} className="text-[9px] font-black uppercase text-neutral-400">Cancel</button>
+                  )}
+
+                  {/* Text — with inline edit form */}
+                  {m.type !== "voice" && !m.imageUrl && (
+                    isEditing ? (
+                      <form onSubmit={saveEdit} onClick={e => e.stopPropagation()} className="flex flex-col gap-2 min-w-[140px]">
+                        <input
+                          autoFocus
+                          value={editInput}
+                          onChange={e => setEditInput(e.target.value)}
+                          className="rounded-lg bg-black/10 px-2 py-1 text-sm outline-none placeholder:text-neutral-400"
+                          onKeyDown={e => e.key === "Escape" && setEditingId(null)}
+                        />
+                        <div className="flex gap-3">
+                          <button type="submit" className="text-[10px] font-black uppercase text-indigo-500">Save</button>
+                          <button type="button" onClick={() => setEditingId(null)} className="text-[10px] font-black uppercase text-neutral-400">Cancel</button>
                         </div>
                       </form>
                     ) : (
-                      <p className="leading-relaxed cursor-pointer" onClick={() => handleMsgClick(m)}>{m.text}</p>
+                      <p className="leading-relaxed">{m.text}</p>
                     )
                   )}
 
-                  <div className="mt-1 text-right text-[9px] opacity-30">{time}</div>
-
-                  {/* Click to locate hint */}
-                  {(m.location || (!isSelf && memberPositions[m.userId])) && (
-                    <div className="mt-1 flex items-center gap-1 text-[9px] text-indigo-400 font-bold uppercase tracking-wider">
-                      <span className="animate-pulse">●</span> Click to locate
-                    </div>
-                  )}
+                  {/* Timestamp */}
+                  <div className={`mt-1 text-[9px] ${isSelf ? "text-black/30" : "text-white/25"} text-right`}>{time}</div>
                 </div>
-
-                {/* Hover actions */}
-                {isSelf && !editingId && (
-                  <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {m.type === "text" && !m.imageUrl && (
-                      <button onClick={() => startEdit(m)} className="rounded-full p-1.5 text-neutral-500 hover:text-white transition-colors">✎</button>
-                    )}
-                    <button onClick={() => deleteMsg(m.id)} className="rounded-full p-1.5 text-red-500/50 hover:text-red-500 transition-colors">✕</button>
-                  </div>
-                )}
               </div>
+            );
+          })}
+        </div>
+
+        {/* Input bar */}
+        <div className="relative shrink-0 border-t border-white/5 px-3 py-3 bg-black/50">
+          {isRecording && (
+            <div className="absolute -top-12 left-3 right-3 flex items-center justify-between rounded-full bg-red-500 px-4 py-2 text-white shadow-xl">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-white animate-pulse block" />
+                <span className="text-[10px] font-black uppercase tracking-wider">Recording…</span>
+              </div>
+              <span className="text-[9px] opacity-70">Release to send</span>
             </div>
-          );
-        })}
+          )}
+
+          <form onSubmit={sendMessage} className="flex items-center gap-2">
+            {/* Mic — hold to record, guard against double-fire */}
+            <button
+              type="button"
+              onMouseDown={startRecording}
+              onMouseUp={stopRecording}
+              onMouseLeave={stopRecording}
+              onTouchStart={e => { e.preventDefault(); startRecording(); }}
+              onTouchEnd={e => { e.preventDefault(); stopRecording(); }}
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all select-none
+                ${isRecording ? "bg-red-500 scale-110" : "bg-white/5 border border-white/10 hover:bg-white/10"}`}
+            >
+              🎤
+            </button>
+
+            {/* Photo */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-40 transition-all"
+            >
+              {uploading ? "⏳" : "📷"}
+            </button>
+            <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
+
+            {/* Text input */}
+            <input
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              disabled={isRecording}
+              placeholder={isRecording ? "Listening…" : "Message…"}
+              className="min-w-0 flex-1 rounded-xl bg-white/5 border border-white/10 px-3 py-2.5 text-sm text-white outline-none focus:bg-white/8 focus:border-white/20 transition-all placeholder:text-neutral-600"
+            />
+
+            {/* Send */}
+            <button
+              type="submit"
+              disabled={!input.trim() || isRecording}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-black font-black transition-all hover:bg-neutral-200 active:scale-90 disabled:opacity-25 text-lg"
+            >
+              →
+            </button>
+          </form>
+        </div>
       </div>
 
-      {/* Input bar */}
-      <div className="relative shrink-0 border-t border-white/5 bg-black/40 px-4 py-4">
-        {isRecording && (
-          <div className="absolute -top-14 left-4 right-4 flex items-center justify-between rounded-full bg-red-500 px-5 py-2.5 text-white shadow-2xl animate-bounce">
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-white animate-pulse block" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Live Voice Broadcast</span>
-            </div>
-            <span className="text-[9px] opacity-70">Release to send</span>
+      {/* ── Instagram-style Context Menu ── */}
+      {contextMenu && (() => {
+        const msg = messages.find(m => m.id === contextMenu.msgId);
+        if (!msg) return null;
+        // Position: ensure it stays within viewport
+        const menuW = 160;
+        const menuH = contextMenu.canEdit ? 100 : 60;
+        const x = Math.min(contextMenu.x, window.innerWidth - menuW - 8);
+        const y = Math.min(contextMenu.y, window.innerHeight - menuH - 8);
+
+        return (
+          <div
+            className="fixed z-[200] overflow-hidden rounded-2xl border border-white/10 bg-black/95 shadow-2xl backdrop-blur-xl"
+            style={{ left: x, top: y, minWidth: menuW }}
+            onPointerDown={e => e.stopPropagation()}
+          >
+            {contextMenu.canEdit && (
+              <button
+                onClick={() => beginEdit(msg)}
+                className="flex w-full items-center gap-3 px-4 py-3 text-sm font-bold text-white hover:bg-white/10 transition-colors border-b border-white/5"
+              >
+                <span className="text-base">✏️</span>
+                Edit Message
+              </button>
+            )}
+            <button
+              onClick={() => deleteMsg(contextMenu.msgId)}
+              className="flex w-full items-center gap-3 px-4 py-3 text-sm font-bold text-red-400 hover:bg-red-500/10 transition-colors"
+            >
+              <span className="text-base">🗑️</span>
+              Delete Message
+            </button>
           </div>
-        )}
-
-        <form onSubmit={sendMessage} className="flex items-center gap-2">
-          {/* Mic */}
-          <button type="button"
-            onMouseDown={startRecording}
-            onMouseUp={stopRecording}
-            onMouseLeave={stopRecording}
-            onTouchStart={e => { e.preventDefault(); startRecording(); }}
-            onTouchEnd={e => { e.preventDefault(); stopRecording(); }}
-            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl transition-all ${isRecording ? "bg-red-500 scale-110" : "bg-white/5 border border-white/10 hover:bg-white/10"}`}
-          >
-            <span className="text-lg">🎤</span>
-          </button>
-
-          {/* Photo */}
-          <button type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-50"
-          >
-            {uploading ? <span className="text-xs animate-spin">⌛</span> : "📷"}
-          </button>
-          <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
-
-          {/* Text */}
-          <input
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            disabled={isRecording}
-            placeholder={isRecording ? "Listening…" : "Message…"}
-            className="flex-1 rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-sm text-white outline-none focus:bg-white/8 focus:border-white/20 transition-all placeholder:text-neutral-600"
-          />
-
-          {/* Send */}
-          <button type="submit" disabled={!input.trim() || isRecording}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-black font-black transition-all hover:bg-neutral-200 active:scale-90 disabled:opacity-30">
-            →
-          </button>
-        </form>
-      </div>
+        );
+      })()}
 
       <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 3px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 20px; }
-        .pt-safe { padding-top: env(safe-area-inset-top, 1rem); }
+        .chat-scroll::-webkit-scrollbar { width: 3px; }
+        .chat-scroll::-webkit-scrollbar-track { background: transparent; }
+        .chat-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.07); border-radius: 20px; }
       `}</style>
-    </div>
+    </>
   );
 };
